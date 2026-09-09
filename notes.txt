@@ -1,0 +1,1 @@
+python -m birdnet_analyzer.train "D:\Acoustics\Dataset\" -o "D:\Acoustics\checkpoints\custom\Custom_Classifier.tflite"
