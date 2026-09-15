@@ -1,1 +1,11 @@
 python -m birdnet_analyzer.train "D:\Acoustics\Dataset\" -o "D:\Acoustics\checkpoints\custom\Custom_Classifier.tflite"
+
+python build_anuran_segments.py --audio-dir "D:\Acoustics\AnuraSET\raw_data\raw_data\INCT4" --label-dir "D:\Acoustics\AnuraSET\strong_labels\INCT4" --output-dir "D:\Acoustics\AnuraSet_3sec\INCT4"
+
+python extract_birdnet_embeddings_metadata.py --metadata "D:\Acoustics\AnuraSet_3sec\INCT4\metadata.csv" --output "D:\Acoustics\embeddings\birdnet_embeddings.npz" --limit 1
+
+python extract_birdnet_embeddings.py `
+>>   --metadata "D:\Acoustics\AnuraSet_3sec\INCT4\metadata.csv" `
+>>   --audio-root "D:\Acoustics\AnuraSet_3sec\INCT4" `
+>>   --output-dir "D:\Acoustics\AnuraSet_3sec\INCT4\birdnet_embeddings"
+
