@@ -11,7 +11,7 @@ df = pd.read_csv("D:/Acoustics/gbif_audio/gbif_audio_metadata.csv")
 #   name       = species name
 #   occurrence = GBIF occurrence that was found
 #   downloaded = whether the audio was successfully downloaded
-df['download_success'] = (df["download_success"] != "failed").astype(int)
+df['download_success'] = (df["download_success"] != "failed").astype(int) #This overestimates the amount of downloads, as wav files that already existed are counted twice
 summary = (
     df
     .groupby("matched_species")

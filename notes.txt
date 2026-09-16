@@ -9,3 +9,4 @@ python extract_birdnet_embeddings.py `
 >>   --audio-root "D:\Acoustics\AnuraSet_3sec\INCT4" `
 >>   --output-dir "D:\Acoustics\AnuraSet_3sec\INCT4\birdnet_embeddings"
 
+python build_anuran_segments.py --audio-dir "D:/Acoustics/AnuraSET/raw_data/raw_data" --label-dir "D:/Acoustics/AnuraSET/strong_labels" --weak-labels "D:/Acoustics/AnuraSET/weak_labels.csv" --output-dir "D:/Acoustics/AnuraSet_3sec_all"
