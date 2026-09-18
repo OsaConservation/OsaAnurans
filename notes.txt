@@ -10,3 +10,9 @@ python extract_birdnet_embeddings.py `
 >>   --output-dir "D:\Acoustics\AnuraSet_3sec\INCT4\birdnet_embeddings"
 
 python build_anuran_segments.py --audio-dir "D:/Acoustics/AnuraSET/raw_data/raw_data" --label-dir "D:/Acoustics/AnuraSET/strong_labels" --weak-labels "D:/Acoustics/AnuraSET/weak_labels.csv" --output-dir "D:/Acoustics/AnuraSet_3sec_all"
+
+python extract_birdnet_embeddings.py --max-segments 20 --metadata D:/Acoustics/AnuraSet_3sec_all/metadata.csv  --audio-dir D:/Acoustics/AnuraSet_3sec_all  --output-dir D:/Acoustics/AnuraSet_3sec_all/birdnet_embeddings
+
+
+$env:BIRDNET_APP_DATA="C:\BirdNETData"
+echo $env:BIRDNET_APP_DATA
