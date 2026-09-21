@@ -64,7 +64,7 @@ def species_label(row):
         and str(event).strip()
         and str(event).lower() not in {"nan", "none"}
     ):
-        return str(event).strip()
+        return str(event).strip().rsplit("_", 1)[0]  # Remove _strong_event suffix if present.
 
     return "Unlabeled"
 

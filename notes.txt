@@ -16,3 +16,16 @@ python extract_birdnet_embeddings.py --max-segments 20 --metadata D:/Acoustics/A
 
 $env:BIRDNET_APP_DATA="C:\BirdNETData"
 echo $env:BIRDNET_APP_DATA
+
+python audit_segment_targets.py --targets "D:/Acoustics/AnuraSet_3sec_all/targets/segment_targets.csv"
+
+
+python plot_birdnet_embeddings_publication.py --embedding-file "D:/Acoustics/AnuraSet_3sec_all/birdnet_embeddings/embeddings.npy" --metadata "D:/Acoustics/AnuraSet_3sec_all/metadata.csv" --output-dir "D:/Acoustics/AnuraSet_3sec_all/birdnet_embeddings/visualization"
+
+
+python -c "from sklearn.linear_model import LogisticRegression; from sklearn.metrics import f1_score; print('SKLEARN COMPONENTS OK')" 
+
+python -c "from matplotlib.pyplot import cbook; print(OK)"
+
+
+python linear_probe_ltn_logistic.py --embedding-file "D:/Acoustics/AnuraSet_3sec_all/birdnet_embeddings/embeddings.npy" --metadata "D:/Acoustics/AnuraSet_3sec_all/metadata.csv" --output-dir "D:/Acoustics/AnuraSet_3sec_all/ltn_logistic"
