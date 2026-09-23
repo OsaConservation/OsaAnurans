@@ -28,4 +28,4 @@ python -c "from sklearn.linear_model import LogisticRegression; from sklearn.met
 python -c "from matplotlib.pyplot import cbook; print(OK)"
 
 
-python linear_probe_ltn_logistic.py --embedding-file "D:/Acoustics/AnuraSet_3sec_all/birdnet_embeddings/embeddings.npy" --metadata "D:/Acoustics/AnuraSet_3sec_all/metadata.csv" --output-dir "D:/Acoustics/AnuraSet_3sec_all/ltn_logistic"
+python linear_probe_ltn_logistic.py --embedding-file "C:/Acoustics/AnuraSet_3sec_all/birdnet_embeddings/embeddings.npy" --metadata "C:/Acoustics/AnuraSet_3sec_all/metadata.csv" --output-dir "C:/Acoustics/AnuraSet_3sec_all/ltn_logistic"

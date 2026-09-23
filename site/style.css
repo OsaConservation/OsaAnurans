@@ -1,0 +1,23 @@
+.container{
+    display: grid;
+    place-items: center;
+    width: 40%;
+    margin: 0 auto;
+}
+
+.card-container{
+    margin: 0;
+    width: 100%;
+    display: grid;
+    place-items: center;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.frog-card{
+    display: flex;
+    width: 80%;
+    border-color: black;
+    border-width: 1px;
+    border-radius: 10px;
+    border-style: solid;
+}
