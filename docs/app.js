@@ -25,7 +25,7 @@ function parseFile(){
                         
 
                         let Audiopath = "docs/audio/" + row.scientific_name + ".mp3";
-                        let Imagepath = "docs/img/" + row.scientific_name + ".png";
+                        let Imagepath = "docs/img/" + row.scientific_name + ".PNG";
                         let Specpath = "docs/img/spec/" + row.scientific_name + ".png";
                         const audio = new Audio(Audiopath);
                         // audio.onerror = function(){
