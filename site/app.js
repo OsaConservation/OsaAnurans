@@ -1,4 +1,10 @@
+
+
+
 const species_path = "../specieslist.csv"
+
+
+
 
 function parseFile(){
     // Fetch and parse the CSV file
@@ -11,16 +17,48 @@ function parseFile(){
 
                 // Loop through each row and extract the 'scientific_name' column
                 data.forEach(row => {
-                    const newCard = document.createElement("div");
-                    newCard.classList.add("frog-card")
-                    const title = document.createElement("h2");
-                    title.textContent = row.scientific_name;
-                    newCard.appendChild(title)
-                    listElement.appendChild(newCard);
+                    if(row.display === '1'){
+                        const newCard = document.createElement("div");
+                        newCard.classList.add("frog-card")
+                        const title = document.createElement("p");
+                        title.textContent = row.scientific_name;
+                        
+
+                        let Audiopath = "./audio/" + row.scientific_name + ".mp3";
+                        let Imagepath = "./img/" + row.scientific_name + ".png";
+                        let Specpath = "./img/spec/" + row.scientific_name + ".png";
+                        const audio = new Audio(Audiopath);
+                        // audio.onerror = function(){
+                        //     this.parentNode.style.display='none';};
+                        audio.controls = true;
+
+                        const img = document.createElement("img");
+                        img.src = Imagepath
+
+                        const spec = document.createElement("img")
+                        spec.src = Specpath
+
+                        
+                        
+
+                        newCard.appendChild(img)
+                        newCard.appendChild(spec)
+                        newCard.appendChild(title)
+                        newCard.appendChild(audio)
+                        
+                        listElement.appendChild(newCard);
+                    }    
                 });
             }
         })
 }
+
+document.querySelectorAll('img').forEach(img => {
+  img.addEventListener('error', function() {
+      this.style.display = 'none';
+    
+  });
+});
 
 
 parseFile();
