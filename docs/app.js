@@ -1,7 +1,7 @@
 
 
 
-const species_path = "../specieslist.csv"
+const species_path = "specieslist.csv"
 
 
 
@@ -24,9 +24,9 @@ function parseFile(){
                         title.textContent = row.scientific_name;
                         
 
-                        let Audiopath = "./audio/" + row.scientific_name + ".mp3";
-                        let Imagepath = "./img/" + row.scientific_name + ".png";
-                        let Specpath = "./img/spec/" + row.scientific_name + ".png";
+                        let Audiopath = "docs/audio/" + row.scientific_name + ".mp3";
+                        let Imagepath = "docs/img/" + row.scientific_name + ".png";
+                        let Specpath = "docs/img/spec/" + row.scientific_name + ".png";
                         const audio = new Audio(Audiopath);
                         // audio.onerror = function(){
                         //     this.parentNode.style.display='none';};
@@ -53,12 +53,6 @@ function parseFile(){
         })
 }
 
-document.querySelectorAll('img').forEach(img => {
-  img.addEventListener('error', function() {
-      this.style.display = 'none';
-    
-  });
-});
 
 
 parseFile();
