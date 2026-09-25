@@ -20,8 +20,8 @@ function parseFile(){
                     if(row.display === '1'){
                         const newCard = document.createElement("div");
                         newCard.classList.add("frog-card")
-                        const title = document.createElement("p");
-                        title.textContent = row.scientific_name;
+                        const scientific_name = document.createElement("i");
+                        scientific_name.textContent = row.scientific_name;
 
                         const common_name = document.createElement("p");
                         common_name.textContent = row.common_name;
@@ -46,7 +46,7 @@ function parseFile(){
 
                         newCard.appendChild(img)
                         newCard.appendChild(spec)
-                        newCard.appendChild(title)
+                        newCard.appendChild(scientific_name)
                         newCard.appendChild(common_name)
                         newCard.appendChild(audio)
                         
