@@ -22,11 +22,14 @@ function parseFile(){
                         newCard.classList.add("frog-card")
                         const title = document.createElement("p");
                         title.textContent = row.scientific_name;
+
+                        const common_name = document.createElement("p");
+                        common_name.textContent = row.common_name;
                         
 
                         let Audiopath = "docs/audio/" + row.scientific_name + ".mp3";
-                        let Imagepath = "docs/img/" + row.scientific_name + ".PNG";
-                        let Specpath = "docs/img/spec/" + row.scientific_name + ".png";
+                        let Imagepath = "docs/img/" + row.scientific_name + ".webp";
+                        let Specpath = "docs/img/spec/" + row.scientific_name + ".webp";
                         const audio = new Audio(Audiopath);
                         // audio.onerror = function(){
                         //     this.parentNode.style.display='none';};
@@ -44,6 +47,7 @@ function parseFile(){
                         newCard.appendChild(img)
                         newCard.appendChild(spec)
                         newCard.appendChild(title)
+                        newCard.appendChild(common_name)
                         newCard.appendChild(audio)
                         
                         listElement.appendChild(newCard);

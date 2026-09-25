@@ -1,53 +1,53 @@
-scientific_name;display
-Allobates talamancae;0
-Atelopus varius;0
-Incilius aucoinae;0
-Incilius coniferus;0
-Incilius melanochlorus;0
-Rhaebo haematiticus;0
-Rhinella horribilis;0
-Cochranella granulosa;0
-Espadarana prosoblepon;0
-Hyalinobatrachium colymbiphyllum;0
-Hyalinobatrachium fleischmanni;0
-Hyalinobatrachium valerioi;0
-Sachatamia albomaculata;0
-Teratohyla pulverata;0
-Craugastor crassidigitus;0
-Craugastor fitzingeri;0
-Craugastor rugosus;0
-Craugastor stejnegerianus;0
-Craugastor taurus;0
-Pristimantis cruentus;0
-Pristimantis pardalis;0
-Pristimantis ridens;0
-Dendrobates auratus;0
-Oophaga granulifera;0
-Phyllobates vittatus;1
-Silverstoneia flotator;0
-Diasporus diastema;0
-Diasporus vocator;0
-Boana rosenbergi;1
-Dendropsophus ebraccatus;1
-Dendropsophus microcephalus;1
-Scinax boulengeri;1
-Scinax elaeochroa;0
-Smilisca baudinii;0
-Smilisca phaeota;0
-Smilisca sila;0
-Smilisca sordida;0
-Trachycephalus typhonius;0
-Triprion spinosus;0
-Engystomops pustulosus;1
-Leptodactylus bolivianus;0
-Leptodactylus fragilis;0
-Leptodactylus insularum;0
-Leptodactylus melanonotus;0
-Leptodactylus poecilochilus;0
-Leptodactylus savagei;0
-Ctenophryne aterrima;0
-Elachistocleis pearsei;0
-Agalychnis annae;0
-Agalychnis callidryas;1
-Agalychnis spurrelli;1
-Lithobates warszewitschii;0
+scientific_name;display;common_name;;;
+Allobates talamancae;0;Talamanca rocket frog;;;
+Atelopus varius;0;Variable harlequin toad;;;
+Incilius aucoinae;0;Pacific forest toad;;;
+Incilius coniferus;0;Evergreen toad;;;
+Incilius melanochlorus;0;Dark green toad;;;
+Rhaebo haematiticus;0;Truando toad;;;
+Rhinella horribilis;0;Cane toad;;;
+Cochranella granulosa;0;Grainy cochran frog;;;
+Espadarana prosoblepon;0;Emerald glass frog;;;
+Hyalinobatrachium colymbiphyllum;0;Plantation glass frog;;;
+Hyalinobatrachium fleischmanni;0;Fleischmann�s glass frog;;;
+Hyalinobatrachium valerioi;0;La Palma glass frog;;;
+Sachatamia albomaculata;0;White-spotted Cochran frog;;;
+Teratohyla pulverata;0;Chiriqui glass frog;;;
+Craugastor crassidigitus;0;Isla Bonita robber frog;;;
+Craugastor fitzingeri;0;Fitzinger's robber frog;;;
+Craugastor rugosus;0;Veragua robber frog;;;
+Craugastor stejnegerianus;0;Stejneger's robber frog;;;
+Craugastor taurus;0;South Pacific streamside frog;;;
+Pristimantis cruentus;0;Chiriqui robber frog;;;
+Pristimantis pardalis;0;Leopard robber frog;;;
+Pristimantis ridens;0;Rio San Juan robber frog;;;
+Dendrobates auratus;0;Green and black poison dart frog;;;
+Oophaga granulifera;0;Granular poison dart frog;;;
+Phyllobates vittatus;1;Golfo Dulce poison dart frog;;;
+Silverstoneia flotator;0;Rainforest rocket frog;;;
+Diasporus diastema;0;Common dink frog;;;
+Diasporus vocator;0;Vocal dink frog;;;
+Boana rosenbergi;1;Rosenberg's treefrog;;;
+Dendropsophus ebraccatus;1;Hourglass treefrog;;;
+Dendropsophus microcephalus;1;Small-headed treefrog;;;
+Scinax boulengeri;1;Boulenger�s snouted treefrog;;;
+Scinax elaeochroa;0;Sipurio snouted treefrog;;;
+Smilisca baudinii;0;Common Mexican treefrog;;;
+Smilisca phaeota;0;New Granada cross-banded treefrog;;;
+Smilisca sila;0;Panama cross-banded treefrog;;;
+Smilisca sordida;0;Veragua cross-banded treefrog;;;
+Trachycephalus typhonius;0;Milk frog;;;
+Triprion spinosus;0;Spiny-headed treefrog;;;
+Engystomops pustulosus;1;T�ngara frog;;;
+Leptodactylus bolivianus;0;Bolivian white-lipped frog;;;
+Leptodactylus fragilis;1;American white-lipped frog;;;
+Leptodactylus insularum;1;San Miguel island frog;;;
+Leptodactylus melanonotus;0;Sabinal frog;;;
+Leptodactylus poecilochilus;0;Brown Foam-nest frog;;;
+Leptodactylus savagei;1;Central American Bullfrog, Smoky Jungle frog;;;
+Ctenophryne aterrima;0;Costa Rica nelson frog;;;
+Elachistocleis pearsei;0;Colombian plump frog;;;
+Agalychnis annae;0;Blue-sided treefrog;;;
+Agalychnis callidryas;1;Red-eyed treefrog;;;
+Agalychnis spurrelli;1;Orange-sided gliding leaf frog;;;
+Lithobates warszewitschii;0;Brilliant Forest frog;;;
