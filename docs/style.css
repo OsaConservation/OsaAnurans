@@ -19,7 +19,7 @@
 .frog-card{
     display: flex;
     width: 200px;
-    /* height: 350px; */
+    height: 450px;
     max-width: 300px;
     border-color: black;
     border-width: 1px;
@@ -35,10 +35,14 @@
 
 .frog-card img{
     width: 100%;
-    max-width: 200px;
-    max-height: 200px;
+    /* max-width: 200px; */
+    /* max-height: 200px; */
     border-radius: 10px;
-    object-fit: cover;
+    object-fit: contain;
+}
+
+.frog-card .card-spec{
+    cursor: pointer;
 }
 
 .frog-card audio{
@@ -67,6 +71,17 @@
     z-index: 1000;
 }
 
+#popup-image{
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    width: 70%;
+    height: 30%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
 .popup-button {
     padding: 10px 20px;
     background-color: #007BFF;
@@ -77,9 +92,27 @@
 
 #popup-close {
     position: absolute;
-    top: 10px;
-    right: 10px;
+    top: -10px;
+    right: -10px;
+    transform: translate(50%, -50%);
+    font-size: 30px;
+    color: aliceblue;
     cursor: pointer;
+}
+
+#popup-close-image {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    transform: translate(50%, -50%);
+    font-size: 30px;
+    color: aliceblue;
+    cursor: pointer;
+}
+
+#popup-image .popup-image{
+    width: 100%;
+    object-fit: contain;
 }
 
 #backdrop {
@@ -107,6 +140,7 @@
     border-radius: 10px;
     object-fit: cover;
 }
+
 
 #popup-card audio{
     display: block;

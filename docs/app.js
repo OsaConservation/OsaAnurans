@@ -2,7 +2,9 @@ const species_path = "specieslist.csv"
 
 const container = document.querySelector(".card-container")
 const popup_card = document.getElementById("popup-card");
+const popup_image = document.getElementById("popup-image");
 const popup_close = document.getElementById("popup-close");
+const popup_close_image = document.getElementById("popup-close-image");
 const backdrop = document.getElementById('backdrop');
 
 
@@ -28,15 +30,32 @@ container.addEventListener("click", (e)=>{
                 
             }
         })
+    }else if(e.target.matches("img.card-spec")){
+        createImagePopup(e.target.src)
     }
 })
 
 popup_close.addEventListener("click", ()=> {
+    popup_card.replaceChildren(popup_card.firstElementChild)
+    popup_image.replaceChildren(popup_image.firstElementChild)
+    popup_image.style.display = "none"
     popup_card.style.display = "none"
     backdrop.style.display = "none"
 })
 
+popup_close_image.addEventListener("click", ()=> {
+    popup_card.replaceChildren(popup_card.firstElementChild)
+    popup_image.replaceChildren(popup_image.firstElementChild)
+    popup_image.style.display = "none"
+    popup_card.style.display = "none"
+    backdrop.style.display = "none"
+})
+
+
 backdrop.addEventListener("click", ()=>{
+    popup_image.replaceChildren(popup_image.firstElementChild)
+    popup_card.replaceChildren(popup_card.firstElementChild)
+    popup_image.style.display = "none"
     popup_card.style.display = "none"
     backdrop.style.display = "none"
 })
@@ -76,9 +95,15 @@ function createFrogCard(common_name, scientific_name){
     common.textContent = common_name;
     
 
+    // let Audiopath = "docs/static/" + scientific_name + "/audio/" + scientific_name + ".mp3";
+    // let Imagepath = "docs/static/"+ scientific_name + "/img/"  + scientific_name + ".webp";
+    // let Specpath = "docs/static/"+ scientific_name + "/img/spec/"  + scientific_name + ".webp";
+
     let Audiopath = "docs/audio/" + scientific_name + ".mp3";
     let Imagepath = "docs/img/" + scientific_name + ".webp";
     let Specpath = "docs/img/spec/" + scientific_name + ".webp";
+
+
     const audio = new Audio(Audiopath);
     // audio.onerror = function(){
     //     this.parentNode.style.display='none';};
@@ -89,6 +114,7 @@ function createFrogCard(common_name, scientific_name){
 
     const spec = document.createElement("img")
     spec.src = Specpath;
+    spec.classList.add("card-spec")
 
     const button = document.createElement("button");
     button.innerHTML = "See more"
@@ -109,13 +135,43 @@ function createFrogCard(common_name, scientific_name){
 
 }
 
+function loadImage() {
+
+    if (bFinishCheck) {
+        clearInterval(myInterval);
+        alert('Loaded ' + i + ' image(s)!)');
+        return;
+    }
+
+    if (bCheckEnabled) {
+
+        bCheckEnabled = false;
+
+        img = new Image();
+        img.onload = fExists;
+        img.onerror = fDoesntExist;
+        img.src = 'images/myFolder/' + i + '.png';
+
+    }
+
+}
+
+function fExists() {
+    specArray.push(img);
+    i++;
+    bCheckEnabled = true;
+}
+
+function fDoesntExist() {
+    bFinishCheck = true;
+}
 
 function createPopupCard(scientific_name, common_name){
 
 
 
 
-    popup_card.replaceChildren(popup_card.firstElementChild)
+    
 
 
     const title = document.createElement("h1");
@@ -140,6 +196,7 @@ function createPopupCard(scientific_name, common_name){
 
 
 
+
     const popup_container = document.createElement("div")
     popup_container.id = "popup-container"
 
@@ -159,6 +216,17 @@ function createPopupCard(scientific_name, common_name){
 
 }
 
+function createImagePopup(source){
+
+    const img = new Image();
+    img.src = source
+    img.classList.add("popup-image")
+
+    popup_image.appendChild(img)
+    popup_image.style.display = "block"
+    backdrop.style.display = "block"
+
+}
 
 
 
