@@ -4,7 +4,7 @@ from pydub import AudioSegment
 
 import os
 
-def wav_to_mp3(directory=r"C:\OsaAnurans\docs\audio"):
+def wav_to_mp3(directory=r"C:\OsaAnurans\docs\static\Agalychnis callidryas\audio"):
     for filename in os.listdir(directory):
         if filename.endswith(".wav"):
             old_path = os.path.join(directory, filename)

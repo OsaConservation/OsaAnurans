@@ -13,6 +13,7 @@ container.addEventListener("click", (e)=>{
         const name = e.target.value;
 
         Papa.parse(species_path, {
+            delimiter: "\t",
             download: true,
             header: true,
             complete: function(results){
@@ -24,7 +25,20 @@ container.addEventListener("click", (e)=>{
                     }else{
                         row = results.data[i];
                         common_name = row.common_name
-                        createPopupCard(name, common_name)
+                        code = row.code
+                        endemism = row.Endemism
+                        family_name = row.family_name
+                        // genus_name = row.genus_name
+                        // species_name = row.species_name
+                        range = row.range
+                        habitat = row.habitat
+                        threats = row.threats
+                        IUCN_status = row.IUCN_status
+                        IUCN_population_trend = row.IUCN_population_trend
+                        IUCN_assessement_year = row.IUCN_assessement_year
+                        audio_files = Papa.parse(row.audio_files).data[0]
+                        spec_files = Papa.parse(row.spec_files).data[0]
+                        createPopupCard(name, common_name, code, endemism, family_name, range, habitat, threats, IUCN_status, IUCN_population_trend, IUCN_assessement_year, audio_files, spec_files)
                     }
                 }
                 
@@ -66,16 +80,17 @@ backdrop.addEventListener("click", ()=>{
 function parseFile(){
     // Fetch and parse the CSV file
         Papa.parse(species_path, {
+            delimiter: "\t",
             download: true,
             header: true, // Uses the first row as column headers
             complete: function(results) {
-                const data = results.data.sort((a,b) => a.scientific_name.localeCompare(b.scientific_name));
+                // const data = results.data.sort((a,b) => a.scientific_name.localeCompare(b.scientific_name));
                 const listElement = document.getElementById("card-container");
 
                 // Loop through each row and extract the 'scientific_name' column
-                data.forEach(row => {
+                results.data.forEach(row => {
                     if(row.display === '1'){
-                        let newCard = createFrogCard(row.common_name, row.scientific_name);
+                        let newCard = createFrogCard(row.common_name, row.scientific_name, row.code);
                         
                         listElement.appendChild(newCard);
                     }    
@@ -85,7 +100,7 @@ function parseFile(){
 }
 
 
-function createFrogCard(common_name, scientific_name){
+function createFrogCard(common_name, scientific_name, code){
     const newCard = document.createElement("div");
     newCard.classList.add("frog-card")
     const scientific = document.createElement("i");
@@ -93,15 +108,18 @@ function createFrogCard(common_name, scientific_name){
 
     const common = document.createElement("p");
     common.textContent = common_name;
+
+    const codeEl = document.createElement("p")
+    codeEl.textContent = code;
     
 
-    // let Audiopath = "docs/static/" + scientific_name + "/audio/" + scientific_name + ".mp3";
-    // let Imagepath = "docs/static/"+ scientific_name + "/img/"  + scientific_name + ".webp";
-    // let Specpath = "docs/static/"+ scientific_name + "/img/spec/"  + scientific_name + ".webp";
+    let Audiopath = "docs/static/" + scientific_name + "/audio/" + scientific_name + "0.mp3";
+    let Imagepath = "docs/static/"+ scientific_name + "/img/"  + scientific_name + "0.webp";
+    let Specpath = "docs/static/"+ scientific_name + "/img/spec/"  + scientific_name + "0.webp";
 
-    let Audiopath = "docs/audio/" + scientific_name + ".mp3";
-    let Imagepath = "docs/img/" + scientific_name + ".webp";
-    let Specpath = "docs/img/spec/" + scientific_name + ".webp";
+    // let Audiopath = "docs/audio/" + scientific_name + ".mp3";
+    // let Imagepath = "docs/img/" + scientific_name + ".webp";
+    // let Specpath = "docs/img/spec/" + scientific_name + ".webp";
 
 
     const audio = new Audio(Audiopath);
@@ -128,6 +146,7 @@ function createFrogCard(common_name, scientific_name){
     newCard.appendChild(spec);
     newCard.appendChild(scientific);
     newCard.appendChild(common);
+    newCard.appendChild(codeEl);
     newCard.appendChild(audio);
     newCard.appendChild(button);
 
@@ -135,82 +154,109 @@ function createFrogCard(common_name, scientific_name){
 
 }
 
-function loadImage() {
-
-    if (bFinishCheck) {
-        clearInterval(myInterval);
-        alert('Loaded ' + i + ' image(s)!)');
-        return;
-    }
-
-    if (bCheckEnabled) {
-
-        bCheckEnabled = false;
-
-        img = new Image();
-        img.onload = fExists;
-        img.onerror = fDoesntExist;
-        img.src = 'images/myFolder/' + i + '.png';
-
-    }
-
-}
-
-function fExists() {
-    specArray.push(img);
-    i++;
-    bCheckEnabled = true;
-}
-
-function fDoesntExist() {
-    bFinishCheck = true;
-}
-
-function createPopupCard(scientific_name, common_name){
-
-
-
-
-    
-
-
-    const title = document.createElement("h1");
-    title.innerHTML = scientific_name.italics();
-    const common = document.createElement("p");
-    common.innerHTML = common_name
-
-
-    let Audiopath = "docs/audio/" + scientific_name + ".mp3";
-    let Imagepath = "docs/img/" + scientific_name + ".webp";
-    let Specpath = "docs/img/spec/" + scientific_name + ".webp";
-    const audio = new Audio(Audiopath);
-    audio.controls = true;
-
-    const img = document.createElement("img");
-    img.src = Imagepath
-    img.id = "frog-picture"
-
-    const spec = document.createElement("img")
-    spec.src = Specpath;
-    spec.classList.add("spec")
-
-
+function createPopupCard(scientific_name, common_name, code, endemism, family_name, range, habitat, threats, IUCN_status, IUCN_population_trend, IUCN_assessement_year, audio_files, spec_files){
 
 
     const popup_container = document.createElement("div")
     popup_container.id = "popup-container"
 
 
+    const title = document.createElement("h1");
+    title.innerHTML = scientific_name.italics();
+    const common = document.createElement("p");
+    common.innerHTML = "Common name(s): " + common_name
+
+
+
+    let Imagepath = "docs/img/" + scientific_name + ".webp";
+    const img = document.createElement("img");
+    img.src = Imagepath
+    img.id = "frog-picture"
+
+    console.log(audio_files)
+    console.log(spec_files)
+
+    var examples = audio_files.map((e, i) => [e, spec_files[i]])
+    console.log(examples)
+    examples.forEach((file) =>{
+
+        console.log(file)
+
+        let Audiopath = "docs/static/" + scientific_name + "/audio/" + file[0]
+        let audio = new Audio(Audiopath)
+        audio.controls = true
+        
+
+        let Specpath = "docs/static/" + scientific_name + "/img/spec/" + file[1]
+
+        let spec = document.createElement("img")
+        spec.src = Specpath;
+        spec.classList.add("spec")
+        spec.classList.add("spec-card")
+
+        let record = document.createElement("div")
+        record.appendChild(spec)
+        record.appendChild(audio)
+        popup_container.appendChild(record);
+
+    })
+
+
+    const codeEl = document.createElement("p")
+    codeEl.textContent = "Annotation Code: " + code;
+
+    const endemismEl = document.createElement("p")
+    endemismEl.textContent = "Endemism: " + endemism;
+
+    const family_nameEl = document.createElement("p")
+    family_nameEl.textContent = "Family: " + family_name
+
+    const rangeEl = document.createElement("p")
+    rangeEl.textContent = "Range: " + range
+
+    const habitatEl = document.createElement("p")
+    habitatEl.textContent = "Habitat: " + habitat
+
+    const threatsEl = document.createElement("p")
+    threatsEl.textContent = "Threats: " + threats
+
+    const IUCN_statusEl = document.createElement("p")
+    IUCN_statusEl.textContent = "Conservation Status: " + IUCN_status
+
+    const IUCN_population_trendEl = document.createElement("p")
+    IUCN_population_trendEl.textContent = "Population Trend: " + IUCN_population_trend
+
+    const IUCN_assessement_yearEl = document.createElement("p")
+    IUCN_assessement_yearEl.textContent = "Last Assessed: " + IUCN_assessement_year
+
+
+
+
+
+
+    
+
+    popup_card.appendChild(img);
     popup_card.appendChild(title)
     popup_card.appendChild(common)
-    popup_card.appendChild(img);
+    popup_card.appendChild(codeEl)
+    popup_card.appendChild(endemismEl)
+    popup_card.appendChild(family_nameEl)
+    popup_card.appendChild(rangeEl)
+    popup_card.appendChild(habitatEl)
+    popup_card.appendChild(threatsEl)
+    popup_card.appendChild(IUCN_statusEl)
+    popup_card.appendChild(IUCN_population_trendEl)
+    popup_card.appendChild(IUCN_assessement_yearEl)
+
+
 
     
     popup_card.appendChild(popup_container)
 
 
-    popup_container.appendChild(spec);
-    popup_container.appendChild(audio);
+    // popup_container.appendChild(spec);
+    // popup_container.appendChild(audio);
     popup_card.style.display = "block"
     backdrop.style.display = "block"
 

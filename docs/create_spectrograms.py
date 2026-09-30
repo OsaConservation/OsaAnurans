@@ -22,6 +22,6 @@ for species in list(df["scientific_name"]):
         ax.axis("off")
         librosa.display.specshow(S_db, sr=sr)
         plt.subplots_adjust(top=1, bottom=0, left=0, right=1, hspace=0, wspace=0)
-        plt.savefig("./img/spec/" + species, transparent=True, bbox_inches="tight", pad_inches=0)
+        plt.savefig("./img/spec/" + species, transparent=True, bbox_inches="tight", pad_inches=0, format="webp")
     except FileNotFoundError:
         print("Error:" + species + "does not have an audio file.")

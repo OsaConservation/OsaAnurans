@@ -1,3 +1,7 @@
+body{
+    font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+}
+
 .container{
     display: grid;
     place-items: center;
@@ -33,6 +37,10 @@
     background-color: aliceblue;
 }
 
+.frog-card p{
+    margin: 5px 0px;
+}
+
 .frog-card img{
     width: 100%;
     /* max-width: 200px; */
@@ -60,7 +68,7 @@
     display: none;
     position: fixed;
     width: 70%;
-    height: 30%;
+    height: 60%;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
@@ -69,7 +77,11 @@
     border: 1px solid #ccc;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
     z-index: 1000;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
+
+
 
 #popup-image{
     display: none;
@@ -92,19 +104,19 @@
 
 #popup-close {
     position: absolute;
-    top: -10px;
-    right: -10px;
-    transform: translate(50%, -50%);
+    top: 10px;
+    left: 10px;
+    transform: translate(-50%, -50%);
     font-size: 30px;
-    color: aliceblue;
+    color: black;
     cursor: pointer;
 }
 
 #popup-close-image {
     position: absolute;
     top: -10px;
-    right: -10px;
-    transform: translate(50%, -50%);
+    left: -10px;
+    transform: translate(-50%, -50%);
     font-size: 30px;
     color: aliceblue;
     cursor: pointer;
@@ -127,13 +139,24 @@
 }
 
 #frog-picture{
-    position: absolute;
+    /* position: absolute;
     top: 30px;
-    right: 30px;
+    right: 30px; */
     max-width: 200px;
+    float: right;
 }
 
-#popup-card .spec{
+#popup-container{
+    margin: 0;
+    width: 100%;
+    display: grid;
+    place-items: center;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    row-gap: 20px;
+    column-gap: 20px;
+}
+
+#popup-container .spec{
     width: 100%;
     max-width: 300px;
     max-height: 200px;
