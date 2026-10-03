@@ -29,3 +29,12 @@ python -c "from matplotlib.pyplot import cbook; print(OK)"
 
 
 python linear_probe_ltn_logistic.py --embedding-file "C:/Acoustics/AnuraSet_3sec_all/birdnet_embeddings/embeddings.npy" --metadata "C:/Acoustics/AnuraSet_3sec_all/metadata.csv" --output-dir "C:/Acoustics/AnuraSet_3sec_all/ltn_logistic"
+
+
+20261003
+Add frequencies to spectrograms DONE
+extra height for cards on mobile?
+testing section
+nav bar DONE
+
+add listener to audios so that only one plays at a time (DONE)

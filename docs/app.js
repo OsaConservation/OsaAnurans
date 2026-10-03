@@ -49,6 +49,17 @@ container.addEventListener("click", (e)=>{
     }
 })
 
+container.addEventListener("play", (e)=>{
+    console.log("hello")
+    const audios = document.querySelectorAll("audio");
+    console.log(audios)
+    audios.forEach((otherAudio) => {
+        if (otherAudio !== e.target){
+            otherAudio.pause()
+        }
+    })
+}, true)
+
 popup_close.addEventListener("click", ()=> {
     popup_card.replaceChildren(popup_card.firstElementChild)
     popup_image.replaceChildren(popup_image.firstElementChild)
@@ -58,19 +69,19 @@ popup_close.addEventListener("click", ()=> {
 })
 
 popup_close_image.addEventListener("click", ()=> {
-    popup_card.replaceChildren(popup_card.firstElementChild)
+    // popup_card.replaceChildren(popup_card.firstElementChild)
     popup_image.replaceChildren(popup_image.firstElementChild)
     popup_image.style.display = "none"
-    popup_card.style.display = "none"
+    // popup_card.style.display = "none"
     backdrop.style.display = "none"
 })
 
 
 backdrop.addEventListener("click", ()=>{
     popup_image.replaceChildren(popup_image.firstElementChild)
-    popup_card.replaceChildren(popup_card.firstElementChild)
+    // popup_card.replaceChildren(popup_card.firstElementChild)
     popup_image.style.display = "none"
-    popup_card.style.display = "none"
+    // popup_card.style.display = "none"
     backdrop.style.display = "none"
 })
 
@@ -173,14 +184,12 @@ function createPopupCard(scientific_name, common_name, code, endemism, family_na
     img.src = Imagepath
     img.id = "frog-picture"
 
-    console.log(audio_files)
-    console.log(spec_files)
+
 
     var examples = audio_files.map((e, i) => [e, spec_files[i]])
-    console.log(examples)
     examples.forEach((file) =>{
 
-        console.log(file)
+
 
         let Audiopath = "docs/static/" + scientific_name + "/audio/" + file[0]
         let audio = new Audio(Audiopath)
@@ -192,7 +201,7 @@ function createPopupCard(scientific_name, common_name, code, endemism, family_na
         let spec = document.createElement("img")
         spec.src = Specpath;
         spec.classList.add("spec")
-        spec.classList.add("spec-card")
+        spec.classList.add("card-spec")
 
         let record = document.createElement("div")
         record.appendChild(spec)
@@ -258,7 +267,7 @@ function createPopupCard(scientific_name, common_name, code, endemism, family_na
     // popup_container.appendChild(spec);
     // popup_container.appendChild(audio);
     popup_card.style.display = "block"
-    backdrop.style.display = "block"
+    // backdrop.style.display = "block"
 
 }
 
@@ -269,6 +278,7 @@ function createImagePopup(source){
     img.classList.add("popup-image")
 
     popup_image.appendChild(img)
+    backdrop.style.zIndex = "1001"
     popup_image.style.display = "block"
     backdrop.style.display = "block"
 

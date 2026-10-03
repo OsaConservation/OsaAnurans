@@ -1,5 +1,40 @@
 body{
     font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+    scrollbar-gutter: stable;
+}
+
+.navbar{
+    /* display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-left: auto; */
+    /* float: right; */
+    height: 10%;
+    /* padding: 10px 10px; */
+    gap: 0 10px;
+    border-bottom: 2px solid black;
+    width: 100%;
+    text-align: center;
+    height: fit-content;
+}
+
+.navbar a {
+  /* float: right; */
+  color: #006411;
+  text-align: center;
+  margin: 14px 14px 14px;
+  text-decoration: none;
+  font-size: 22px;
+}
+
+.navbar a:hover {
+  /* background-color: #ddd; */
+  color: rgb(72, 108, 152);
+}
+
+.navbar a.active {
+  background-color: #04AA6D;
+  color: white;
 }
 
 .container{
@@ -18,6 +53,7 @@ body{
     place-items: center;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     row-gap: 20px;
+    padding: 5% 0;
 }
 
 .frog-card{
@@ -46,11 +82,13 @@ body{
     /* max-width: 200px; */
     /* max-height: 200px; */
     border-radius: 10px;
-    object-fit: contain;
+    object-fit: cover;
 }
 
 .frog-card .card-spec{
     cursor: pointer;
+    object-position: -7px 0px;
+
 }
 
 .frog-card audio{
@@ -86,12 +124,13 @@ body{
 #popup-image{
     display: none;
     position: fixed;
-    z-index: 1000;
+    z-index: 2000;
     width: 70%;
-    height: 30%;
+    height: calc(fit-content - 4px);
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
+    /* background-color: aliceblue; */
 }
 
 .popup-button {
@@ -134,7 +173,7 @@ body{
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
+    background-color: rgba(0, 0, 0, 0.8);
     z-index: 1000;
 }
 
@@ -162,6 +201,8 @@ body{
     max-height: 200px;
     border-radius: 10px;
     object-fit: cover;
+    object-position: -10px 0px;
+    cursor: pointer;
 }
 
 
