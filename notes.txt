@@ -33,7 +33,7 @@ python linear_probe_ltn_logistic.py --embedding-file "C:/Acoustics/AnuraSet_3sec
 
 20261003
 Add frequencies to spectrograms DONE
-extra height for cards on mobile?
+extra height for cards on mobile? DONE
 testing section
 nav bar DONE
 
