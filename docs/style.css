@@ -93,14 +93,9 @@ body{
 .frog-card .card-spec{
     cursor: pointer;
     object-position: -7px 0px;
-<<<<<<< HEAD
-    overflow-x: scroll;
-
-=======
     margin-top: auto;
     overflow-x: auto;
     
->>>>>>> d5b4af123db91512b87c7863251fc0c31d71f961
 
 }
 
