@@ -152,12 +152,13 @@ function createFrogCard(common_name, scientific_name, code){
 
     
     
-
+    //newCard.appendChild(common);
+    //newCard.appendChild(codeEl);
     newCard.appendChild(img);
     newCard.appendChild(spec);
-    newCard.appendChild(scientific);
-    newCard.appendChild(common);
-    newCard.appendChild(codeEl);
+    //newCard.appendChild(scientific);
+    
+    
     newCard.appendChild(audio);
     newCard.appendChild(button);
 

@@ -5,6 +5,7 @@
     <title>Osa Anurans</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style_learn.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.6.1/papaparse.min.js"></script>
     
 
@@ -20,6 +21,14 @@
             <a href="/docs/learn.html">Learn</a>
         </div>
         <div id="backdrop"></div>
+        <div class="stats">
+            <p>Score:</p>
+            <p id="score">0</p>
+            <button onclick="clearScore()">Reset</button>
+        </div>
+
+        <div class="card-container" id="card-container">
+        </div>
         
         
 
