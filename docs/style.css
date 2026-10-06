@@ -88,6 +88,8 @@ body{
 .frog-card .card-spec{
     cursor: pointer;
     object-position: -7px 0px;
+    overflow-x: scroll;
+
 
 }
 
