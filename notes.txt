@@ -31,3 +31,4 @@ python -c "from matplotlib.pyplot import cbook; print(OK)"
 python linear_probe_ltn_logistic.py --embedding-file "C:/Acoustics/AnuraSet_3sec_all/birdnet_embeddings/embeddings.npy" --metadata "C:/Acoustics/AnuraSet_3sec_all/metadata.csv" --output-dir "C:/Acoustics/AnuraSet_3sec_all/ltn_logistic"
 
 
+add Smilisca phaeota to website
