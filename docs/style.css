@@ -1,6 +1,8 @@
 body{
     font-family: 'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
     scrollbar-gutter: stable;
+    background-image: url("./OIP.webp");
+    background-size: repeat;
 }
 
 .navbar{
