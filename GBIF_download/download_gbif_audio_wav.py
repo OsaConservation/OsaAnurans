@@ -19,7 +19,9 @@ The script:
 3. Falls back to the matched GBIF Backbone taxonKey when needed.
 4. Downloads every audio URL exposed in the occurrence media field.
 5. Converts each successful recording to 16-bit PCM WAV using FFmpeg.
-6. Saves a metadata CSV linking each downloaded file to its GBIF occurrence,
+6. Skips byte-identical audio, even when it is exposed at different URLs, and
+   downloads associated text annotations when available.
+7. Saves a metadata CSV linking each downloaded file to its GBIF occurrence,
    species, dataset, license, rights holder, and source URL.
 
 GBIF occurrence searches are paginated at up to 300 records per request.
@@ -42,8 +44,8 @@ import shutil
 import subprocess
 import sys
 import time
-from pathlib import Path
-from urllib.parse import urlparse
+from pathlib import Path, PurePosixPath
+from urllib.parse import urlparse, urlunparse
 
 import pandas as pd
 import requests
@@ -285,6 +287,65 @@ def get_audio_media(occurrence: dict) -> list[dict]:
     return audio
 
 
+def get_annotation_url(
+    audio_media: dict,
+    media_items: list[dict],
+) -> str | None:
+    """Find a text annotation linked to this audio, or its same-stem sibling."""
+    audio_url = str(audio_media.get("identifier", ""))
+    audio_parts = urlparse(audio_url)
+    audio_stem = str(PurePosixPath(audio_parts.path).with_suffix(""))
+    audio_references = str(audio_media.get("references", "")).strip()
+    text_media = []
+
+    for media in media_items:
+        identifier = str(media.get("identifier", "")).strip()
+        if not identifier or media is audio_media:
+            continue
+
+        parts = urlparse(identifier)
+        media_type = str(media.get("type", "")).lower()
+        media_format = str(media.get("format", "")).lower()
+        if (
+            PurePosixPath(parts.path).suffix.lower() != ".txt"
+            and "text" not in media_type
+            and "text" not in media_format
+        ):
+            continue
+        text_media.append((media, identifier, parts))
+
+    matching = []
+    for media, identifier, parts in text_media:
+        media_stem = str(PurePosixPath(parts.path).with_suffix(""))
+        references = str(media.get("references", "")).strip()
+        if (
+            (
+                parts.netloc.lower() == audio_parts.netloc.lower()
+                and media_stem == audio_stem
+            )
+            or (audio_references and references == audio_references)
+        ):
+            matching.append(identifier)
+
+    sound_media_count = sum(
+        str(media.get("type", "")).lower() == "sound"
+        for media in media_items
+    )
+    if not matching and sound_media_count == 1 and len(text_media) == 1:
+        matching = [text_media[0][1]]
+
+    if matching:
+        return matching[0]
+
+    if PurePosixPath(audio_parts.path).suffix.lower() in AUDIO_EXTENSIONS:
+        annotation_path = str(
+            PurePosixPath(audio_parts.path).with_suffix(".txt")
+        )
+        return urlunparse(audio_parts._replace(path=annotation_path))
+
+    return None
+
+
 def choose_extension(url: str, media: dict, content_type: str = "") -> str:
     """Determine a reasonable audio file extension."""
     # Prefer a known extension in the publisher URL.
@@ -313,6 +374,7 @@ def download_file(
     url: str,
     destination: Path,
     retries: int = 4,
+    allow_not_found: bool = False,
 ) -> tuple[bool, str]:
     """
     Download a single file.
@@ -338,6 +400,9 @@ def download_file(
                     print(f"    429 from publisher; waiting {wait}s...")
                     time.sleep(wait)
                     continue
+
+                if allow_not_found and response.status_code == 404:
+                    return False, "not_found"
 
                 response.raise_for_status()
 
@@ -374,6 +439,74 @@ def download_file(
 
     return False, ""
 
+
+def sha256_file(path: Path) -> str:
+    """Return the SHA-256 digest of a file without loading it all into memory."""
+    digest = hashlib.sha256()
+    with path.open("rb") as file_handle:
+        for chunk in iter(lambda: file_handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def upgrade_metadata_schema(
+    metadata_path: Path,
+    fieldnames: list[str],
+) -> list[str]:
+    """Add new metadata columns while preserving rows from earlier runs."""
+    if not metadata_path.exists():
+        return fieldnames
+
+    with metadata_path.open("r", newline="", encoding="utf-8") as source:
+        reader = csv.DictReader(source)
+        old_fieldnames = reader.fieldnames or []
+        if all(name in old_fieldnames for name in fieldnames):
+            return old_fieldnames
+
+        combined_fieldnames = list(dict.fromkeys(old_fieldnames + fieldnames))
+        temporary_path = metadata_path.with_suffix(
+            metadata_path.suffix + ".tmp"
+        )
+        with temporary_path.open(
+            "w",
+            newline="",
+            encoding="utf-8",
+        ) as target:
+            writer = csv.DictWriter(target, fieldnames=combined_fieldnames)
+            writer.writeheader()
+            writer.writerows(reader)
+
+    temporary_path.replace(metadata_path)
+    return combined_fieldnames
+
+
+def load_audio_hashes(
+    metadata_path: Path,
+    output_dir: Path,
+) -> tuple[dict[str, Path], dict[str, str]]:
+    """Load prior source hashes whose corresponding WAV files still exist."""
+    hashes_to_wav: dict[str, Path] = {}
+    wav_to_hash: dict[str, str] = {}
+
+    if not metadata_path.exists():
+        return hashes_to_wav, wav_to_hash
+
+    with metadata_path.open(
+        "r",
+        newline="",
+        encoding="utf-8",
+    ) as metadata_file:
+        for row in csv.DictReader(metadata_file):
+            digest = row.get("audio_sha256", "")
+            wav_file = row.get("wav_file", "")
+            if not digest or not wav_file:
+                continue
+            wav_path = output_dir / wav_file
+            if wav_path.exists() and wav_path.stat().st_size > 0:
+                hashes_to_wav.setdefault(digest, wav_path)
+                wav_to_hash.setdefault(str(wav_path.resolve()), digest)
+
+    return hashes_to_wav, wav_to_hash
 
 
 def find_ffmpeg(explicit_path: str | None = None) -> str:
@@ -579,11 +712,21 @@ def main():
         "wav_file",
         "download_status",
         "conversion_status",
+        "audio_sha256",
+        "annotation_file",
+        "annotation_status",
     ]
 
     # If a previous metadata file exists, append to it. This makes it possible
     # to resume a large run. Existing downloaded files are also skipped.
-    metadata_exists = metadata_path.exists()
+    fieldnames = upgrade_metadata_schema(metadata_path, fieldnames)
+    hashes_to_wav, wav_to_hash = load_audio_hashes(
+        metadata_path,
+        output_dir,
+    )
+    metadata_exists = (
+        metadata_path.exists() and metadata_path.stat().st_size > 0
+    )
 
     with open(
         metadata_path,
@@ -684,6 +827,8 @@ def main():
                             f"[{search_method}]"
                         )
 
+                        audio_sha256 = ""
+
                         # A completed WAV means this item is already usable;
                         # don't re-download it on a resumed run.
                         if wav_path.exists() and wav_path.stat().st_size > 0:
@@ -692,6 +837,10 @@ def main():
                             download_status = "skipped_wav_exists"
                             conversion_ok = True
                             conversion_status = "already_exists"
+                            audio_sha256 = wav_to_hash.get(
+                                str(wav_path.resolve()),
+                                "",
+                            )
                         else:
                             success, content_type = download_file(
                                 session,
@@ -716,14 +865,46 @@ def main():
                                         original_path = new_original
 
                             if success:
-                                download_status = "downloaded"
-                                print("    Converting to WAV...")
-                                conversion_ok, conversion_message = convert_to_wav(
-                                    ffmpeg,
-                                    original_path,
-                                    wav_path,
+                                audio_sha256 = sha256_file(original_path)
+                                duplicate_path = hashes_to_wav.get(
+                                    audio_sha256
                                 )
-                                conversion_status = conversion_message
+                                if (
+                                    duplicate_path
+                                    and duplicate_path != wav_path
+                                ):
+                                    download_status = "skipped_duplicate"
+                                    conversion_ok = True
+                                    conversion_status = "duplicate_content"
+                                    wav_path = duplicate_path
+                                    try:
+                                        original_path.unlink()
+                                    except OSError as exc:
+                                        print(
+                                            "    Could not delete duplicate "
+                                            f"audio: {exc}"
+                                        )
+                                else:
+                                    download_status = "downloaded"
+                                    print("    Converting to WAV...")
+                                    (
+                                        conversion_ok,
+                                        conversion_message,
+                                    ) = convert_to_wav(
+                                        ffmpeg,
+                                        original_path,
+                                        wav_path,
+                                    )
+                                    conversion_status = conversion_message
+                                    if conversion_ok:
+                                        hashes_to_wav.setdefault(
+                                            audio_sha256,
+                                            wav_path,
+                                        )
+                                        wav_to_hash.setdefault(
+                                            str(wav_path.resolve()),
+                                            audio_sha256,
+                                        )
                             else:
                                 download_status = "failed"
                                 conversion_ok = False
@@ -764,6 +945,44 @@ def main():
                                     "    WAV conversion failed: "
                                     f"{conversion_status}"
                                 )
+
+                        annotation_url = get_annotation_url(
+                            media,
+                            occurrence.get("media", []) or [],
+                        )
+                        annotation_file = ""
+                        if annotation_url:
+                            labels_dir = (
+                                output_dir
+                                / "labels"
+                                / sanitize_filename(requested_name)
+                            )
+                            labels_dir.mkdir(parents=True, exist_ok=True)
+                            annotation_path = labels_dir / f"{base}.txt"
+                            (
+                                annotation_ok,
+                                annotation_content_type,
+                            ) = download_file(
+                                session,
+                                annotation_url,
+                                annotation_path,
+                                allow_not_found=True,
+                            )
+                            if annotation_ok:
+                                annotation_status = (
+                                    "already_downloaded"
+                                    if annotation_content_type == "already_downloaded"
+                                    else "downloaded"
+                                )
+                                annotation_file = str(
+                                    annotation_path.relative_to(output_dir)
+                                )
+                            elif annotation_content_type == "not_found":
+                                annotation_status = "not_found"
+                            else:
+                                annotation_status = "failed"
+                        else:
+                            annotation_status = "not_available"
 
                         writer.writerow(
                             {
@@ -808,6 +1027,9 @@ def main():
                                 "wav_file": wav_file,
                                 "download_status": download_status,
                                 "conversion_status": conversion_status,
+                                "audio_sha256": audio_sha256,
+                                "annotation_file": annotation_file,
+                                "annotation_status": annotation_status,
                             }
                         )
                         metadata_file.flush()
