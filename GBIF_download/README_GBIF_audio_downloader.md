@@ -38,7 +38,24 @@ gbif_audio/
 ```
 
 The metadata CSV records the GBIF occurrence ID, taxon key, source URL,
-dataset, license, rights holder, and downloaded filename.
+dataset, license, rights holder, downloaded filename, source audio SHA-256,
+and any downloaded annotation path.
+
+Byte-identical audio is stored and converted only once, even when GBIF lists it
+under different URLs. To determine whether two differently linked files are
+identical, each source must first be fetched and hashed; duplicate copies are
+then discarded and metadata points to the existing WAV. The SHA-256 values are
+kept in the metadata CSV so this also applies when resuming a run.
+
+Text annotation media linked to the occurrence (or a same-stem `.txt` file
+beside the audio URL) is saved under a parallel `labels/` directory, using the
+same recording filename stem:
+
+```text
+gbif_audio/
+├── audio/<species>/<recording>.wav
+└── labels/<species>/<recording>.txt
+```
 
 ### Other options
 
