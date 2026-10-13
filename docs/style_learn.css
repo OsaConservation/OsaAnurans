@@ -5,8 +5,16 @@
     align-items: center;
 }
 
+/* .question-card audio{
+    border-radius: 0px;
+} */
+
 .question-spec{
     width: 100%;
+}
+
+.answer-card{
+    display: grid;
 }
 
 .answer-card button{
