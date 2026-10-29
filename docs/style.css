@@ -93,7 +93,7 @@ body{
 }
 
 .frog-card .card-spec{
-    cursor: pointer;
+    cursor: zoom-in;
     object-position: -7px 0px;
     margin-top: auto;
     overflow-x: auto;
@@ -225,4 +225,37 @@ body{
 
 #popup-card audio::-webkit-media-controls-panel {
   padding: 0 10px;
+}
+
+ul {
+  /* width: 100%; */
+  /* height: 300px; */
+  padding: 5px;
+  margin: 0px;
+  display: flex;
+  gap: 10px;
+  overflow-x: scroll;
+  scroll-snap-type: x mandatory;
+  /* anchor-name: var(--anchor-id); */
+  position: relative;
+  overscroll-behavior-x: contain;
+}
+
+
+li {
+  list-style-type: none;
+  background-color: #c1daff;
+  border: 1px solid #dddddd;
+  border-radius: 5px;
+  margin: 5px;
+  padding: 5px;
+
+  flex: 0 0 calc(100% - 10px);
+  max-width: 100%;
+  scroll-snap-align: center;
+}
+
+
+li:nth-child(even) {
+  background-color: rgb(126, 187, 187);
 }

@@ -1,6 +1,6 @@
 import pandas as pd
 
-df = pd.read_csv("D:/Acoustics/gbif_audio/gbif_audio_metadata.csv")
+df = pd.read_csv("F:/Acoustics/newgbif/gbif_audio/gbif_audio_metadata.csv")
 
 # ---------------------------------------------------------
 # DOWNLOAD SUMMARY BY SPECIES
@@ -11,14 +11,14 @@ df = pd.read_csv("D:/Acoustics/gbif_audio/gbif_audio_metadata.csv")
 #   name       = species name
 #   occurrence = GBIF occurrence that was found
 #   downloaded = whether the audio was successfully downloaded
-df['download_success'] = (df["download_success"] != "failed").astype(int) 
+df['download_status'] = (df["download_status"] != "failed").astype(int) 
 #This overestimates the amount of downloads, as wav files that already existed are counted twice. might be able to add && df["download_success"] != "already_exists" to the above line to fix this, but then it will underestimate the amount of downloads, as some files that were already downloaded might have been deleted and re-downloaded.
 summary = (
     df
     .groupby("matched_species")
     .agg(
         sound_occurrences_found=("occurrence_id", "count"),
-        successfully_downloaded=("download_success", "sum")
+        successfully_downloaded=("download_status", "sum")
     )
     .reset_index()
 )

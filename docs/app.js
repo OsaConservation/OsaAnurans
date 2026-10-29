@@ -101,7 +101,9 @@ function parseFile(){
                 // Loop through each row and extract the 'scientific_name' column
                 results.data.forEach(row => {
                     if(row.display === '1'){
-                        let newCard = createFrogCard(row.common_name, row.scientific_name, row.code);
+                        audio_files = Papa.parse(row.audio_files).data[0]
+                        spec_files = Papa.parse(row.spec_files).data[0]
+                        let newCard = createFrogCard(row.common_name, row.scientific_name, row.code, audio_files, spec_files);
                         
                         listElement.appendChild(newCard);
                     }    
@@ -111,7 +113,7 @@ function parseFile(){
 }
 
 
-function createFrogCard(common_name, scientific_name, code){
+function createFrogCard(common_name, scientific_name, code, audio_files, spec_files){
     const newCard = document.createElement("div");
     newCard.classList.add("frog-card")
     const scientific = document.createElement("i");
@@ -151,15 +153,43 @@ function createFrogCard(common_name, scientific_name, code){
     button.value = scientific_name
 
     
-    
+    const carousel = document.createElement("ul")
+
+
+
+    var examples = audio_files.map((e, i) => [e, spec_files[i]])
+    examples.forEach((file) =>{
+
+        let Audiopath = "docs/static/" + scientific_name + "/audio/" + file[0]
+        let audio = new Audio(Audiopath)
+        audio.controls = true
+        
+
+        let Specpath = "docs/static/" + scientific_name + "/img/spec/" + file[1]
+
+        let spec = document.createElement("img")
+        spec.src = Specpath;
+        spec.classList.add("spec")
+        spec.classList.add("card-spec")
+
+        let record = document.createElement("li")
+
+        record.appendChild(spec)
+        record.appendChild(audio)
+        carousel.appendChild(record);
+
+    })
+
+
     //newCard.appendChild(common);
     //newCard.appendChild(codeEl);
     newCard.appendChild(img);
-    newCard.appendChild(spec);
+    newCard.appendChild(carousel)
+    // newCard.appendChild(spec);
     //newCard.appendChild(scientific);
     
     
-    newCard.appendChild(audio);
+    // newCard.appendChild(audio);
     newCard.appendChild(button);
 
     return newCard
