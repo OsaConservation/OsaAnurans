@@ -72,14 +72,14 @@
     max-height: 140px;
 }
 
-.reference-examples {
+.reference-clips {
     display: flex;
     overflow-x: auto;
     gap: 16px;
     min-width: 0;
 }
 
-.reference-examples .sound-example {
+.reference-clips .audio-clip {
     flex: 0 0 100%;
     min-width: 0;
 }
@@ -139,16 +139,16 @@
     height: 100px;
 }
 
-.frog-carousel .reference-examples {
+.frog-carousel .reference-clips {
     grid-row: 4;
     align-self: start;
 }
 
-.frog-carousel .sound-example > img {
+.frog-carousel .audio-clip > img {
     aspect-ratio: 2 / 1;
 }
 
-/* Recording cards and explicit Yes / No / Unsure answers. */
+/* Clip cards and explicit Yes / No / Unsure answers. */
 .results-list {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -264,7 +264,7 @@
     }
 }
 
-/* Desktop comparison workspace: equally wide reference and recording columns.
+/* Desktop comparison workspace: equally wide reference and clip columns.
    Later target-specific rules override the shared card/carousel styles above. */
 .container {
     max-width: 1120px;
@@ -307,7 +307,7 @@
     font: inherit;
 }
 
-#frog-card .reference-examples {
+#frog-card .reference-clips {
     display: block;
     overflow: visible;
 }
@@ -321,7 +321,7 @@
 }
 
 .reference-spectrogram img,
-.results-list .sound-example > img {
+.results-list .audio-clip > img {
     aspect-ratio: 2 / 1;
 }
 
@@ -366,7 +366,7 @@
     #frog-card .frog-card > p {
         display: none;
     }
-    #frog-card .sound-example {
+    #frog-card .audio-clip {
         display: flex;
         flex-direction: column;
     }

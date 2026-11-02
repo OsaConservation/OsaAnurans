@@ -21,7 +21,7 @@ updateSaveBarHeight();
 new ResizeObserver(updateSaveBarHeight).observe(saveBar);
 
 // Compare current answers with acknowledged answers to detect unsaved edits.
-// Keys are recording/window IDs; values are "yes", "no", or "unsure".
+// Keys are clip/window IDs; values are "yes", "no", or "unsure".
 
 const answers = new Map();
 const savedAnswers = new Map();
@@ -42,7 +42,7 @@ function element(tag, text, className) {
     return node;
 }
 
-// Only new or changed answers count as unsaved; unanswered recordings are skipped.
+// Only new or changed answers count as unsaved; unanswered clips are skipped.
 
 function dirty() {
     return [...answers].some(([id, label]) => savedAnswers.get(id) !== label);
@@ -53,7 +53,7 @@ function updateProgress() {
         ([id, label]) => savedAnswers.get(id) !== label,
     ).length;
     $("#progress").textContent =
-        `${answers.size} of ${batch?.recordings.length || 0} answered · ${changed} unsaved`;
+        `${answers.size} of ${batch?.clips.length || 0} answered · ${changed} unsaved`;
     saveButton.disabled = loading || saving || !changed;
     dropdown.disabled = loading || saving || !dropdown.options.length;
     document.querySelectorAll(".answer-options input").forEach((input) => {
@@ -82,24 +82,24 @@ mobileLayout.addEventListener("change", () => {
         details.open = !mobileLayout.matches;
     });
 });
-function sound(example, label, isTarget = false) {
-    const wrapper = element("div", null, "sound-example");
-    if (example.spectrogramUrl) {
+function sound(clip, label, isTarget = false) {
+    const wrapper = element("div", null, "audio-clip");
+    if (clip.spectrogramUrl) {
         if (isTarget) {
             const details = element("details", null, "reference-spectrogram");
             details.open = !mobileLayout.matches;
             details.append(
                 element("summary", "Target spectrogram"),
-                image(example.spectrogramUrl, `Spectrogram: ${label}`),
+                image(clip.spectrogramUrl, `Spectrogram: ${label}`),
             );
             wrapper.append(details);
         } else
             wrapper.append(
-                image(example.spectrogramUrl, `Spectrogram: ${label}`),
+                image(clip.spectrogramUrl, `Spectrogram: ${label}`),
             );
     }
     const audio = element("audio");
-    audio.src = example.audioUrl;
+    audio.src = clip.audioUrl;
     audio.controls = true;
     audio.preload = "none";
     audio.setAttribute("aria-label", label);
@@ -108,7 +108,7 @@ function sound(example, label, isTarget = false) {
             wrapper.append(
                 element(
                     "p",
-                    "Audio unavailable. Please try another recording.",
+                    "Audio unavailable. Please try another clip.",
                     "media-error audio-error",
                 ),
             );
@@ -117,7 +117,7 @@ function sound(example, label, isTarget = false) {
     return wrapper;
 }
 
-// The target shows one selectable example; other frogs use an example carousel.
+// The target shows one selectable clip; other frogs use a clip carousel.
 
 function referenceCard(species, isTarget = false) {
     const card = element("article", null, "frog-card");
@@ -127,43 +127,43 @@ function referenceCard(species, isTarget = false) {
     );
     if (species.imageUrl)
         card.append(image(species.imageUrl, species.scientificName));
-    const examples = element("div", null, "reference-examples");
-    if (isTarget && species.examples.length) {
+    const clips = element("div", null, "reference-clips");
+    if (isTarget && species.clips.length) {
         const select = element("select");
-        select.setAttribute("aria-label", "Target reference example");
-        species.examples.forEach((_example, i) => {
+        select.setAttribute("aria-label", "Target reference clip");
+        species.clips.forEach((_clip, i) => {
             const option = element(
                 "option",
-                `Reference ${i + 1} of ${species.examples.length}`,
+                `Reference ${i + 1} of ${species.clips.length}`,
             );
             option.value = i;
             select.append(option);
         });
-        const showExample = () => {
-            // Pause the outgoing example before removing its audio element.
-            examples
+        const showClip = () => {
+            // Pause the outgoing clip before removing its audio element.
+            clips
                 .querySelectorAll("audio")
                 .forEach((audio) => audio.pause());
-            examples.replaceChildren(
+            clips.replaceChildren(
                 sound(
-                    species.examples[Number(select.value)],
-                    `${species.scientificName}, example ${Number(select.value) + 1}`,
+                    species.clips[Number(select.value)],
+                    `${species.scientificName}, clip ${Number(select.value) + 1}`,
                     true,
                 ),
             );
         };
-        select.addEventListener("change", showExample);
-        if (species.examples.length > 1) card.append(select);
-        showExample();
+        select.addEventListener("change", showClip);
+        if (species.clips.length > 1) card.append(select);
+        showClip();
     } else
-        species.examples.forEach((example, i) =>
-            examples.append(
-                sound(example, `${species.scientificName}, example ${i + 1}`),
+        species.clips.forEach((clip, i) =>
+            clips.append(
+                sound(clip, `${species.scientificName}, clip ${i + 1}`),
             ),
         );
-    if (!species.examples.length)
-        examples.append(element("p", "No reference audio available."));
-    card.append(examples);
+    if (!species.clips.length)
+        clips.append(element("p", "No reference audio available."));
+    card.append(clips);
     return card;
 }
 
@@ -180,14 +180,14 @@ function renderReferences(references) {
 
 // Native radio groups support mouse, touch, and keyboard interaction.
 
-function renderRecordings() {
+function renderCandidates() {
     const list = $(".results-list");
     list.replaceChildren();
-    batch.recordings.forEach((recording, i) => {
+    batch.clips.forEach((clip, i) => {
         const li = element("li");
         li.append(
-            element("h3", `Recording ${i + 1}`),
-            sound(recording, `Recording ${i + 1}`),
+            element("h3", `Clip ${i + 1}`),
+            sound(clip, `Clip ${i + 1}`),
         );
         const choices = element("fieldset", null, "answer-options");
         choices.append(element("legend", `Can you hear ${speciesId}?`));
@@ -199,10 +199,10 @@ function renderRecordings() {
             const label = element("label"),
                 input = element("input");
             input.type = "radio";
-            input.name = `recording-${i}`;
+            input.name = `clip-${i}`;
             input.value = value;
             input.addEventListener("change", () => {
-                answers.set(recording.id, value);
+                answers.set(clip.id, value);
                 pendingSubmission = null;
                 status.textContent = "";
                 updateProgress();
@@ -213,9 +213,9 @@ function renderRecordings() {
         li.append(choices);
         list.append(li);
     });
-    if (!batch.recordings.length)
+    if (!batch.clips.length)
         list.append(
-            element("li", "No recordings are waiting for this species."),
+            element("li", "No clips are waiting for review for this species."),
         );
 }
 
@@ -224,7 +224,7 @@ function renderRecordings() {
 async function loadSpecies(id) {
     loading = true;
     retry.hidden = true;
-    status.textContent = "Loading references and recordings…";
+    status.textContent = "Loading references and clips…";
     // Clear old media immediately so users cannot compare against the wrong target.
     document.querySelectorAll("audio").forEach((audio) => audio.pause());
     $("#frog-card").replaceChildren();
@@ -239,16 +239,16 @@ async function loadSpecies(id) {
     try {
         const [references, nextBatch] = await Promise.all([
             provider.getReferenceSounds(id),
-            provider.getRecordings(id),
+            provider.getCandidates(id),
         ]);
         if (
-            new Set(nextBatch.recordings.map((item) => item.id)).size !==
-            nextBatch.recordings.length
+            new Set(nextBatch.clips.map((item) => item.id)).size !==
+            nextBatch.clips.length
         )
-            throw new Error("Recording IDs must be unique within a batch.");
+            throw new Error("Clip window IDs must be unique within a batch.");
         batch = nextBatch;
         renderReferences(references);
-        renderRecordings();
+        renderCandidates();
         status.textContent = "";
     } catch (error) {
         status.textContent = `Could not load this species: ${error.message}`;
@@ -277,7 +277,7 @@ saveButton.addEventListener("click", async () => {
     pendingSubmission ||= buildSubmission(
         speciesId,
         batch.batchId,
-        batch.recordings,
+        batch.clips,
         new Map(
             [...answers].filter(
                 ([id, label]) => savedAnswers.get(id) !== label,
@@ -344,7 +344,7 @@ async function initialize() {
         provider = createProvider(window.annotationConfig);
         $("#mode-note").textContent =
             window.annotationConfig.provider === "demo"
-                ? "Demo mode · Sample recordings are reused for every species. Saves stay in this browser."
+                ? "Demo mode · Sample clips are reused for every species. Saves stay in this browser."
                 : "Answers will be saved to the annotation server.";
         const species = await provider.listSpecies();
         if (!species.length) throw new Error("No species are available.");

@@ -8,15 +8,15 @@ import {
 
 test("batch includes answered windows only and preserves target and source metadata", async () => {
     const provider = new DemoProvider({});
-    const { batchId, recordings } = await provider.getRecordings("frog-a");
+    const { batchId, clips } = await provider.getCandidates("frog-a");
     const payload = buildSubmission(
         "frog-a",
         batchId,
-        recordings,
+        clips,
         new Map([
-            [recordings[0].id, "yes"],
-            [recordings[2].id, "no"],
-            [recordings[4].id, "unsure"],
+            [clips[0].id, "yes"],
+            [clips[2].id, "no"],
+            [clips[4].id, "unsure"],
         ]),
         "submission-1",
     );
@@ -59,9 +59,50 @@ test("server skeleton never reports a successful operation", async () => {
     for (const operation of [
         "listSpecies",
         "getReferenceSounds",
-        "getRecordings",
+        "getCandidates",
         "saveAnnotations",
     ]) {
         await assert.rejects(provider[operation]("frog"), /not implemented/);
+    }
+});
+
+test("reference and candidate audio share clips and media fields", async () => {
+    const originalParser = globalThis.Papa;
+    globalThis.Papa = {
+        parse(source, options) {
+            if (options?.download) {
+                options.complete({
+                    errors: [],
+                    data: [{
+                        display: "1",
+                        scientific_name: "Test frog",
+                        common_name: "Test frog",
+                        audio_files: "reference.wav",
+                        spec_files: "reference.png",
+                    }],
+                });
+                return;
+            }
+            return { data: [[source]] };
+        },
+    };
+    try {
+        const provider = new DemoProvider({});
+        const references = await provider.getReferenceSounds("Test frog");
+        const candidates = await provider.getCandidates("Test frog");
+        assert.ok(Array.isArray(references.target.clips));
+        assert.ok(Array.isArray(candidates.clips));
+        assert.equal(references.target.clips.length, 1);
+        assert.equal(candidates.clips.length, 5);
+        assert.equal("examples" in references.target, false);
+        assert.equal("recordings" in candidates, false);
+        for (const clip of [...references.target.clips, ...candidates.clips]) {
+            assert.equal(typeof clip.audioUrl, "string");
+            assert.equal(typeof clip.spectrogramUrl, "string");
+        }
+        assert.equal(candidates.clips[0].recordingId, 633);
+    } finally {
+        if (originalParser === undefined) delete globalThis.Papa;
+        else globalThis.Papa = originalParser;
     }
 });

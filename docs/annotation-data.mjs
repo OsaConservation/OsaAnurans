@@ -18,9 +18,9 @@ export class ServerProvider {
         throw new Error("Server reference loading is not implemented yet.");
     }
 
-    async getRecordings(speciesId) {
-        // TODO: GET /species/:speciesId/recordings; return a stable batch ID.
-        throw new Error("Server recording loading is not implemented yet.");
+    async getCandidates(speciesId) {
+        // TODO: GET /species/:speciesId/candidates; return a stable batch ID.
+        throw new Error("Server candidate loading is not implemented yet.");
     }
 
     async saveAnnotations(batch) {
@@ -30,7 +30,7 @@ export class ServerProvider {
     }
 }
 
-// Each sample is [window ID, recording ID, start seconds, end seconds, source URI].
+// Each sample is [window ID, source recording ID, start seconds, end seconds, source URI].
 // Demo mode reuses the same WAV/PNG pairs for every target species.
 const windows = [
     [25435, 633, 35, 40, "sw2/1Jsw2_20261009_014000.wav"],
@@ -88,7 +88,7 @@ export class DemoProvider {
                                         scientificName: row.scientific_name,
                                         commonName: row.common_name,
                                         imageUrl: `${root}/img/${encodeURIComponent(row.scientific_name)}0.webp`,
-                                        examples: files
+                                        clips: files
                                             .filter(Boolean)
                                             .map((file, i) => ({
                                                 audioUrl: `${root}/audio/${encodeURIComponent(file)}`,
@@ -118,10 +118,10 @@ export class DemoProvider {
         };
     }
 
-    async getRecordings(speciesId) {
+    async getCandidates(speciesId) {
         return {
             batchId: `demo:${speciesId}`,
-            recordings: windows.map(
+            clips: windows.map(
                 ([windowId, recordingId, start, end, uri], i) => ({
                     id: String(windowId),
                     recordingId,
@@ -143,6 +143,11 @@ export class DemoProvider {
             saved.push(batch);
             this.storage.setItem(key, JSON.stringify(saved));
         }
+        console.log("Saved")
+        console.log(saved)
+        this.storage.clear()
+
+
         return {
             submissionId: batch.submissionId,
             savedCount: batch.annotations.length,
@@ -161,7 +166,7 @@ export function createProvider(config) {
 export function buildSubmission(
     speciesId,
     batchId,
-    recordings,
+    clips,
     answers,
     submissionId,
 ) {
@@ -170,7 +175,7 @@ export function buildSubmission(
         speciesId,
         batchId,
         createdAt: new Date().toISOString(),
-        annotations: recordings
+        annotations: clips
             .filter((item) => answers.has(item.id))
             .map((item) => ({
                 windowId: item.id,

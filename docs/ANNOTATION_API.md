@@ -8,8 +8,8 @@ All paths below are relative to `baseUrl`. IDs are opaque strings. Media URLs mu
 
 - `listSpecies()` → `GET /species`: `[{id, scientificName, commonName}]`.
 - `getReferenceSounds(speciesId)` → `GET /species/:id/references`: `{target: ReferenceSpecies, comparisons: ReferenceSpecies[]}`. Exclude the target from comparisons.
-- `ReferenceSpecies`: `{id, scientificName, commonName, imageUrl?: string, examples: [{audioUrl, spectrogramUrl?: string}]}`.
-- `getRecordings(speciesId)` → `GET /species/:id/recordings`: `{batchId, recordings: [{id, recordingId, offsets: [startSeconds, endSeconds], uri, datasetName, audioUrl, spectrogramUrl?: string}]}`. Recording IDs must be unique in a batch. An empty array means no work available. The target and batch must stay associated on the server.
+- `ReferenceSpecies`: `{id, scientificName, commonName, imageUrl?: string, clips: [{audioUrl, spectrogramUrl?: string}]}`.
+- `getCandidates(speciesId)` → `GET /species/:id/candidates`: `{batchId, clips: [{id, recordingId, offsets: [startSeconds, endSeconds], uri, datasetName, audioUrl, spectrogramUrl?: string}]}`. Clip window IDs must be unique in a batch. An empty array means no work available. The target and batch must stay associated on the server.
 - `saveAnnotations(batch)` → `POST /annotations`: request shown below; response `{submissionId, savedCount}`. Resolve only after every annotation is durably saved. Reject HTTP errors, invalid responses, timeouts, and partial saves. The UI keeps answers on failure.
 
 ```json
@@ -29,7 +29,7 @@ All paths below are relative to `baseUrl`. IDs are opaque strings. Media URLs mu
 }
 ```
 
-Labels are `yes` (target audible), `no` (target not audible), or `unsure`. Unanswered recordings are omitted. A save contains only new or changed answers. Subsequent saves can revise earlier labels.
+Labels are `yes` (target audible), `no` (target not audible), or `unsure`. Unanswered clips are omitted. A save contains only new or changed answers. Subsequent saves can revise earlier labels.
 
 ## Server TODOs
 
@@ -41,6 +41,10 @@ The UI reuses a submissionId for retries of an unchanged payload. Editing after 
 
 ## Demo behavior
 
-Species and reference media come from the existing CSV/static files. The same five sample recordings are reused for every target, clearly marked as demo data. Successful batches are stored under `osa-demo-annotations-v1` in localStorage; nothing reaches a training database. Storage errors leave answers unsaved. Saved batches remain in storage for inspection, but previous answers are not restored into a new session. There is no automatic batch paging yet; add a cursor/next-batch operation when the server supports it.
+Species and reference media come from the existing CSV/static files. The same five sample clips are reused for every target, clearly marked as demo data. Successful batches are stored under `osa-demo-annotations-v1` in localStorage; nothing reaches a training database. Storage errors leave answers unsaved. Saved batches remain in storage for inspection, but previous answers are not restored into a new session. There is no automatic batch paging yet; add a cursor/next-batch operation when the server supports it.
 
 Serve from the repository root with `.venv/Scripts/python.exe -m http.server 8000 --bind 127.0.0.1`, then open `/docs/annotate.html`. The existing PapaParse CDN dependency requires a network connection. No new runtime libraries are used.
+
+## Shared clip terminology
+
+Both reference and candidate audio use a `clips` list. Each clip has an `audioUrl` and an optional `spectrogramUrl`. Reference clips demonstrate a known species. Candidate clips await review and additionally carry an opaque window `id`, source `recordingId`, offsets, URI, and dataset name. `recordingId` still identifies the original source recording. No candidates returns `{batchId: null, clips: []}`. The old `/recordings` endpoint and `examples`/`recordings` collection fields have been replaced.
