@@ -8,6 +8,18 @@ const saveButton = $("#sendButton");
 const status = $("#status");
 const retry = $("#retry");
 
+// Leave room below the desktop reference panel for the sticky save controls.
+// Observe wrapping and text changes as well as viewport resizing.
+const saveBar = $(".save-bar");
+const updateSaveBarHeight = () => {
+    document.documentElement.style.setProperty(
+        "--save-bar-height",
+        `${saveBar.getBoundingClientRect().height}px`,
+    );
+};
+updateSaveBarHeight();
+new ResizeObserver(updateSaveBarHeight).observe(saveBar);
+
 // Compare current answers with acknowledged answers to detect unsaved edits.
 // Keys are recording/window IDs; values are "yes", "no", or "unsure".
 

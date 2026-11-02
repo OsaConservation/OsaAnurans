@@ -103,14 +103,49 @@
 
 .frog-carousel {
     width: 100%;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 260px;
+    grid-template-rows: auto auto 100px auto;
+    gap: 8px 10px;
 }
 
 .frog-carousel > li {
-    flex: 0 0 260px;
+    display: grid;
+    grid-row: span 4;
+    grid-template-rows: subgrid;
+    min-width: 0;
+}
+
+.frog-carousel .frog-card {
+    display: grid;
+    grid-row: span 4;
+    grid-template-rows: subgrid;
+    justify-content: stretch;
+}
+
+.frog-carousel .frog-card > h3 {
+    grid-row: 1;
+    margin: 0;
+}
+
+.frog-carousel .frog-card > p {
+    grid-row: 2;
+    margin: 0;
 }
 
 .frog-carousel .frog-card > img {
+    grid-row: 3;
     height: 100px;
+}
+
+.frog-carousel .reference-examples {
+    grid-row: 4;
+    align-self: start;
+}
+
+.frog-carousel .sound-example > img {
+    aspect-ratio: 2 / 1;
 }
 
 /* Recording cards and explicit Yes / No / Unsure answers. */
@@ -245,7 +280,8 @@
 .reference-panel {
     position: sticky;
     top: 12px;
-    max-height: calc(100dvh - 24px);
+    /* Keep the carousel scrollbar above the sticky save bar, with a gap. */
+    max-height: calc(100dvh - var(--save-bar-height, 90px) - 24px);
     overflow-y: auto;
     min-width: 0;
     padding: 4px;
