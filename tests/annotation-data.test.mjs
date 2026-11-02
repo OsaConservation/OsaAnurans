@@ -53,19 +53,6 @@ test("demo retries do not duplicate a saved submission; storage errors reject", 
     });
     await assert.rejects(broken.saveAnnotations(batch), /Storage full/);
 });
-test("server skeleton never reports a successful operation", async () => {
-    const provider = new ServerProvider("http://localhost:8080/api/");
-    assert.equal(provider.baseUrl, "http://localhost:8080/api");
-    for (const operation of [
-        "listSpecies",
-        "getReferenceSounds",
-        "getCandidates",
-        "saveAnnotations",
-    ]) {
-        await assert.rejects(provider[operation]("frog"), /not implemented/);
-    }
-});
-
 test("reference and candidate audio share clips and media fields", async () => {
     const originalParser = globalThis.Papa;
     globalThis.Papa = {

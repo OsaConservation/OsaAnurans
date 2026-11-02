@@ -4,30 +4,218 @@
  * Response shapes and backend requirements are documented in ANNOTATION_API.md.
  */
 export class ServerProvider {
-    constructor(baseUrl) {
-        this.baseUrl = baseUrl.replace(/\/$/, "");
+    constructor(
+        baseUrl,
+        { fetch: fetchImpl = globalThis.fetch, timeoutMs = 15000 } = {},
+    ) {
+        if (typeof baseUrl !== "string" || !baseUrl.trim())
+            throw new Error("Server base URL is required.");
+        if (!Number.isFinite(timeoutMs) || timeoutMs <= 0)
+            throw new Error("Invalid request timeout.");
+
+        this.baseUrl = baseUrl.replace(/\/+$/, "");
+        // Browser fetch must be called without binding it to this provider.
+        this.fetch = (...args) => fetchImpl(...args);
+        this.timeoutMs = timeoutMs;
+    }
+
+    // Apply one deadline to fetching headers and reading the response body.
+    async request(path, body) {
+        const controller = new AbortController();
+        let timer;
+        const timeout = new Promise((_, reject) => {
+            timer = setTimeout(() => {
+                controller.abort();
+                reject(
+                    new Error(
+                        "Server request timed out. Retry the unchanged submission if saving.",
+                    ),
+                );
+            }, this.timeoutMs);
+        });
+
+        try {
+            return await Promise.race([
+                timeout,
+                this.fetchJson(path, body, controller.signal),
+            ]);
+        } catch (error) {
+            throw new Error(`Annotation server: ${error.message}`, {
+                cause: error,
+            });
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    async fetchJson(path, body, signal) {
+        const options = { method: "GET", signal };
+        if (body !== undefined) {
+            options.method = "POST";
+            options.headers = { "Content-Type": "application/json" };
+            options.body = JSON.stringify(body);
+        }
+
+        const response = await this.fetch(`${this.baseUrl}${path}`, options);
+        let data;
+        try {
+            data = await response.json();
+        } catch {
+            throw new Error(
+                response.ok
+                    ? "Server returned invalid JSON."
+                    : `Server HTTP ${response.status}: non-JSON response.`,
+            );
+        }
+
+        if (!response.ok) {
+            const message = data?.error?.message || "Request failed.";
+            throw new Error(`Server HTTP ${response.status}: ${message}`);
+        }
+        return data;
     }
 
     async listSpecies() {
-        // TODO: GET /species; authenticate and validate response.
-        throw new Error("Server species loading is not implemented yet.");
+        const data = await this.request("/species");
+        requireShape(Array.isArray(data), "species list");
+        data.forEach(validateSpecies);
+        validateUniqueIds(data);
+        return data;
     }
 
     async getReferenceSounds(speciesId) {
-        // TODO: GET /species/:speciesId/references; URL-encode speciesId.
-        throw new Error("Server reference loading is not implemented yet.");
+        const data = await this.request(
+            `/species/${encodeURIComponent(speciesId)}/references`,
+        );
+        requireShape(data && Array.isArray(data.comparisons), "references");
+        requireShape(data.target?.id === speciesId, "reference target");
+        const species = [data.target, ...data.comparisons];
+        validateUniqueIds(species);
+        species.forEach(validateReferenceSpecies);
+        return data;
     }
 
     async getCandidates(speciesId) {
-        // TODO: GET /species/:speciesId/candidates; return a stable batch ID.
-        throw new Error("Server candidate loading is not implemented yet.");
+        const data = await this.request(
+            `/species/${encodeURIComponent(speciesId)}/candidates`,
+        );
+        requireShape(
+            data && Array.isArray(data.clips) && data.clips.length <= 15,
+            "candidate clips",
+        );
+        requireShape(
+            isNonemptyString(data.batchId) ||
+                (data.batchId === null && !data.clips.length),
+            "batch ID",
+        );
+        validateUniqueIds(data.clips);
+        data.clips.forEach(validateCandidate);
+        return data;
     }
 
     async saveAnnotations(batch) {
-        // TODO: POST /annotations using submissionId for idempotent retries.
-        // Resolve only after the entire batch is durably saved. Reject on errors.
-        throw new Error("Server annotation saving is not implemented yet.");
+        const data = await this.request("/annotations", batch);
+        requireShape(
+            data &&
+                data.submissionId === batch.submissionId &&
+                Number.isInteger(data.savedCount) &&
+                data.savedCount === batch.annotations.length,
+            "complete save acknowledgement",
+        );
+        return data;
     }
+}
+
+// Validate at the provider boundary so rendering receives predictable data.
+function requireShape(condition, field) {
+    if (!condition) throw new Error(`Invalid server response: ${field}.`);
+}
+
+const isNonemptyString = (value) =>
+    typeof value === "string" && value.trim().length > 0;
+
+function validateOptionalMedia(value) {
+    requireShape(
+        value == null || isNonemptyString(value),
+        "optional media URL",
+    );
+}
+
+function validateSpecies(item) {
+    requireShape(
+        item &&
+            isNonemptyString(item.id) &&
+            isNonemptyString(item.scientificName) &&
+            typeof item.commonName === "string",
+        "species",
+    );
+}
+
+function validateUniqueIds(items) {
+    requireShape(
+        items.every((item) => item && isNonemptyString(item.id)) &&
+            new Set(items.map((item) => item.id)).size === items.length,
+        "unique IDs",
+    );
+}
+
+function validateBounds(start, end) {
+    requireShape(
+        Number.isFinite(start) &&
+            Number.isFinite(end) &&
+            start >= 0 &&
+            end > start,
+        "playback bounds",
+    );
+}
+
+function validateReferenceSpecies(species) {
+    validateSpecies(species);
+    validateOptionalMedia(species.imageUrl);
+    requireShape(Array.isArray(species.clips), "reference clips");
+
+    species.clips.forEach((clip) => {
+        requireShape(
+            clip && isNonemptyString(clip.audioUrl),
+            "reference audio URL",
+        );
+        validateOptionalMedia(clip.spectrogramUrl);
+
+        // Whole-file reference clips normally have no playback bounds.
+        if (clip.startSeconds != null || clip.endSeconds != null) {
+            validateBounds(clip.startSeconds, clip.endSeconds);
+        }
+    });
+}
+
+function validateCandidate(clip) {
+    requireShape(
+        Number.isFinite(clip.recordingId) && Number.isInteger(clip.recordingId),
+        "recording ID",
+    );
+    requireShape(
+        isNonemptyString(clip.uri) &&
+            isNonemptyString(clip.datasetName) &&
+            isNonemptyString(clip.audioUrl),
+        "candidate source fields",
+    );
+    validateOptionalMedia(clip.spectrogramUrl);
+
+    // Playback bounds and saved source offsets describe the same review window.
+    requireShape(
+        Array.isArray(clip.offsets) && clip.offsets.length === 2,
+        "offsets",
+    );
+    validateBounds(clip.startSeconds, clip.endSeconds);
+    requireShape(
+        clip.offsets[0] === clip.startSeconds &&
+            clip.offsets[1] === clip.endSeconds,
+        "matching offsets",
+    );
+    requireShape(
+        Number.isInteger(clip.numAnnotations) && clip.numAnnotations >= 0,
+        "annotation count",
+    );
 }
 
 // Each sample is [window ID, source recording ID, start seconds, end seconds, source URI].
@@ -39,6 +227,7 @@ const windows = [
     [24001, 514, 5, 10, "sw1/1Jsw1_20260920_004000.wav"],
     [22970, 428, 10, 15, "sw1/1Jsw1_20260917_225400.wav"],
 ];
+
 export class DemoProvider {
     // Injectable storage lets tests simulate persistence errors without a browser.
     constructor(storage = window.localStorage) {
@@ -143,10 +332,9 @@ export class DemoProvider {
             saved.push(batch);
             this.storage.setItem(key, JSON.stringify(saved));
         }
-        console.log("Saved")
-        console.log(saved)
-        this.storage.clear()
-
+        console.log("Saved");
+        console.log(saved);
+        this.storage.clear();
 
         return {
             submissionId: batch.submissionId,

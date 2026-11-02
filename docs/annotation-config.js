@@ -1,5 +1,5 @@
-// Switch to server once its provider TODOs are implemented. Local and remote use the same adapter.
+// Select "demo" for CSV/static samples and browser-only saves.
 window.annotationConfig = {
-    provider: "demo",
+    provider: "server",
     baseUrl: "http://127.0.0.1:8080/api",
 };
