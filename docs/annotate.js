@@ -1,351 +1,357 @@
-const species_path = "../specieslist.csv"
-// const container = document.querySelector(".card-container")
-const resultsCarousel = document.querySelector(".results-carousel")
-const listElement = document.getElementById("card-container");
-const dropdown = document.getElementById('scientific')
-const frogCard = document.getElementById('frog-card')
+import { createProvider, buildSubmission } from "./annotation-data.mjs";
 
+// Page controls. All reads and saves go through the configured data provider.
 
+const $ = (selector) => document.querySelector(selector);
+const dropdown = $("#scientific");
+const saveButton = $("#sendButton");
+const status = $("#status");
+const retry = $("#retry");
 
-fake_data = {0: {'window_id': 25435,
-  'score': -0.003451429307460785,
-  'recording_id': 633,
-  'offsets': [35.0, 40.0],
-  'uri': 'sw2/1Jsw2_20261009_014000.wav',
-  'dataset_name': 'grillos'},
- 1: {'window_id': 23933,
-  'score': -0.002235017716884613,
-  'recording_id': 508,
-  'offsets': [25.0, 30.0],
-  'uri': 'sw1/1Jsw1_20260919_224000.wav',
-  'dataset_name': 'grillos'},
- 2: {'window_id': 23976,
-  'score': -0.001905784010887146,
-  'recording_id': 512,
-  'offsets': [0.0, 5.0],
-  'uri': 'sw1/1Jsw1_20260920_000000.wav',
-  'dataset_name': 'grillos'},
- 3: {'window_id': 24001,
-  'score': -6.45071268081665e-05,
-  'recording_id': 514,
-  'offsets': [5.0, 10.0],
-  'uri': 'sw1/1Jsw1_20260920_004000.wav',
-  'dataset_name': 'grillos'},
- 4: {'window_id': 22970,
-  'score': -0.0010343044996261597,
-  'recording_id': 428,
-  'offsets': [10.0, 15.0],
-  'uri': 'sw1/1Jsw1_20260917_225400.wav',
-  'dataset_name': 'grillos'}}
+// Compare current answers with acknowledged answers to detect unsaved edits.
+// Keys are recording/window IDs; values are "yes", "no", or "unsure".
 
-const states = [
-    { class: 'unlabeled', label: 'Unlabeled' },
-    { class: 'positive', label: 'Positive' },
-    { class: 'negative', label: 'Negative' },
-    { class: 'uncertain', label: 'Uncertain' }
-];
+const answers = new Map();
+const savedAnswers = new Map();
 
-dropdown.addEventListener("change", function(){
-    choice = this.value
-    Papa.parse(species_path, {
-            delimiter: "\t",
-            download: true,
-            header: true,
-            complete: function(results){
-                const index = results.data.findIndex(row => row.scientific_name === choice);
-                row = results.data[index]
-                
-                audio_files = Papa.parse(row.audio_files).data[0]
-                spec_files = Papa.parse(row.spec_files).data[0]
-                let newCard = createFrogCard(row.common_name, row.scientific_name, row.code, audio_files, spec_files);
-                frogCard.replaceChildren(frogCard.firstElementChild)
-                frogCard.appendChild(newCard);
-            }
+let provider;
+let speciesId;
+let batch;
+let loading = false;
+let saving = false;
+let pendingSubmission;
 
-        })
-})
+// Use textContent so species names and server text are never interpreted as HTML.
 
-resultsCarousel.addEventListener("click", (e) =>{
-    if(e.target.matches("button")){
-        console.log(e.target)
-        const key = e.target.value
-        currentState = e.target.classList[0]
+function element(tag, text, className) {
+    const node = document.createElement(tag);
+    if (text) node.textContent = text;
+    if (className) node.className = className;
+    return node;
+}
 
-        var index = states.findIndex(row => row.class === currentState);
+// Only new or changed answers count as unsaved; unanswered recordings are skipped.
 
-        index = (index + 1) % states.length;
+function dirty() {
+    return [...answers].some(([id, label]) => savedAnswers.get(id) !== label);
+}
 
-        states.forEach(s => e.target.classList.remove(s.class))
+function updateProgress() {
+    const changed = [...answers].filter(
+        ([id, label]) => savedAnswers.get(id) !== label,
+    ).length;
+    $("#progress").textContent =
+        `${answers.size} of ${batch?.recordings.length || 0} answered · ${changed} unsaved`;
+    saveButton.disabled = loading || saving || !changed;
+    dropdown.disabled = loading || saving || !dropdown.options.length;
+    document.querySelectorAll(".answer-options input").forEach((input) => {
+        input.disabled = saving;
+    });
+    saveButton.textContent = saving ? "Saving…" : "Save annotations";
+}
 
-        e.target.classList.add(states[index].class)
-        e.target.textContent = states[index].label
+function image(url, alt) {
+    const img = element("img");
+    img.src = url;
+    img.alt = alt;
+    img.loading = "lazy";
+    img.addEventListener("error", () =>
+        img.replaceWith(element("p", `${alt} unavailable.`, "media-error")),
+    );
+    return img;
+}
 
+// Keep this breakpoint aligned with CSS. Crossing it resets the spectrogram to
+// expanded on desktop or collapsed on mobile; users can then toggle it themselves.
+
+const mobileLayout = window.matchMedia("(max-width: 760px)");
+mobileLayout.addEventListener("change", () => {
+    document.querySelectorAll(".reference-spectrogram").forEach((details) => {
+        details.open = !mobileLayout.matches;
+    });
+});
+function sound(example, label, isTarget = false) {
+    const wrapper = element("div", null, "sound-example");
+    if (example.spectrogramUrl) {
+        if (isTarget) {
+            const details = element("details", null, "reference-spectrogram");
+            details.open = !mobileLayout.matches;
+            details.append(
+                element("summary", "Target spectrogram"),
+                image(example.spectrogramUrl, `Spectrogram: ${label}`),
+            );
+            wrapper.append(details);
+        } else
+            wrapper.append(
+                image(example.spectrogramUrl, `Spectrogram: ${label}`),
+            );
     }
-})
-
-
-function parseFile(){
-    // Fetch and parse the CSV file
-        Papa.parse(species_path, {
-            delimiter: "\t",
-            download: true,
-            header: true, // Uses the first row as column headers
-            complete: function(results) {
-                // const data = results.data.sort((a,b) => a.scientific_name.localeCompare(b.scientific_name));
-                
-
-                // Loop through each row and extract the 'scientific_name' column
-                // results.data.forEach(row => {
-                //     if(row.display === '1'){
-                //         audio_files = Papa.parse(row.audio_files).data[0]
-                //         spec_files = Papa.parse(row.spec_files).data[0]
-                //         let newCard = createFrogCard(row.common_name, row.scientific_name, row.code, audio_files, spec_files);
-                        
-                //         listElement.appendChild(newCard);
-                //     }    
-                // });
-
-                const data = []
-                const all_names = []
-
-                // Loop through each row and extract the 'scientific_name' column
-                results.data.forEach(row => {
-                    if(row.display === '1'){
-                        data.push(row)
-                        all_names.push(row.scientific_name)
-                    }    
-                });
-
-                all_names.forEach(name => {
-                    const option = document.createElement("option")
-                    option.value = name
-                    option.textContent = name
-                    dropdown.appendChild(option)
-                })
-
-                choice = dropdown.value
-                
-
-                const index = data.findIndex(row => row.scientific_name === choice);
-
-                row = data[index]
-                
-                audio_files = Papa.parse(row.audio_files).data[0]
-                spec_files = Papa.parse(row.spec_files).data[0]
-                let newCard = createFrogCard(row.common_name, row.scientific_name, row.code, audio_files, spec_files);
-                
-                frogCard.appendChild(newCard);
-            }
-        })
-}
-
-
-function createFrogCard(common_name, scientific_name, code, audio_files, spec_files){
-    const newCard = document.createElement("div");
-    newCard.classList.add("frog-card")
-    const scientific = document.createElement("i");
-    scientific.textContent = scientific_name;
-
-    const common = document.createElement("p");
-    common.textContent = common_name;
-
-    const codeEl = document.createElement("p")
-    codeEl.textContent = code;
-    
-
-    let Audiopath = "static/" + scientific_name + "/audio/" + scientific_name + "0.mp3";
-    let Imagepath = "static/"+ scientific_name + "/img/"  + scientific_name + "0.webp";
-    let Specpath = "static/"+ scientific_name + "/img/spec/"  + scientific_name + "0.webp";
-
-    // let Audiopath = "docs/audio/" + scientific_name + ".mp3";
-    // let Imagepath = "docs/img/" + scientific_name + ".webp";
-    // let Specpath = "docs/img/spec/" + scientific_name + ".webp";
-
-
-    const audio = new Audio(Audiopath);
-    // audio.onerror = function(){
-    //     this.parentNode.style.display='none';};
+    const audio = element("audio");
+    audio.src = example.audioUrl;
     audio.controls = true;
-
-    const img = document.createElement("img");
-    img.src = Imagepath
-
-    const spec = document.createElement("img")
-    spec.src = Specpath;
-    spec.classList.add("card-spec")
-
-    const button = document.createElement("button");
-    button.innerHTML = "See more"
-    button.classList.add("popup-button");
-    button.value = scientific_name
-
-    
-    const carousel = document.createElement("ul")
-
-
-
-    var examples = audio_files.map((e, i) => [e, spec_files[i]])
-    examples.forEach((file) =>{
-
-        let Audiopath = "static/" + scientific_name + "/audio/" + file[0]
-        let audio = new Audio(Audiopath)
-        audio.controls = true
-        
-
-        let Specpath = "static/" + scientific_name + "/img/spec/" + file[1]
-
-        let spec = document.createElement("img")
-        spec.src = Specpath;
-        spec.classList.add("spec")
-        spec.classList.add("card-spec")
-
-        let record = document.createElement("li")
-
-        record.appendChild(spec)
-        record.appendChild(audio)
-        carousel.appendChild(record);
-
-    })
-
-
-    //newCard.appendChild(common);
-    //newCard.appendChild(codeEl);
-    newCard.appendChild(img);
-    newCard.appendChild(carousel)
-    // newCard.appendChild(spec);
-    //newCard.appendChild(scientific);
-    
-    
-    // newCard.appendChild(audio);
-    // newCard.appendChild(button);
-
-    return newCard
-
+    audio.preload = "none";
+    audio.setAttribute("aria-label", label);
+    audio.addEventListener("error", () => {
+        if (!wrapper.querySelector(".audio-error"))
+            wrapper.append(
+                element(
+                    "p",
+                    "Audio unavailable. Please try another recording.",
+                    "media-error audio-error",
+                ),
+            );
+    });
+    wrapper.append(audio);
+    return wrapper;
 }
 
+// The target shows one selectable example; other frogs use an example carousel.
 
-
-const API_URL = "http://127.0.0.1:8080/submit";
-
-document.getElementById("sendButton").addEventListener("click", async () => {
-
-    const button = document.getElementById("sendButton");
-    const status = document.getElementById("status");
-
-    // Example data to send to Python
-    const payload = {
-        event: "button_clicked",
-        timestamp: new Date().toISOString(),
-        user_action: "manual_submission",
-        value: 123
-    };
-
-    button.disabled = true;
-    status.textContent = "Sending data...";
-
-    try {
-        const response = await fetch(API_URL, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(payload)
+function referenceCard(species, isTarget = false) {
+    const card = element("article", null, "frog-card");
+    card.append(
+        element("h3", species.scientificName),
+        element("p", species.commonName),
+    );
+    if (species.imageUrl)
+        card.append(image(species.imageUrl, species.scientificName));
+    const examples = element("div", null, "reference-examples");
+    if (isTarget && species.examples.length) {
+        const select = element("select");
+        select.setAttribute("aria-label", "Target reference example");
+        species.examples.forEach((_example, i) => {
+            const option = element(
+                "option",
+                `Reference ${i + 1} of ${species.examples.length}`,
+            );
+            option.value = i;
+            select.append(option);
         });
+        const showExample = () => {
+            // Pause the outgoing example before removing its audio element.
+            examples
+                .querySelectorAll("audio")
+                .forEach((audio) => audio.pause());
+            examples.replaceChildren(
+                sound(
+                    species.examples[Number(select.value)],
+                    `${species.scientificName}, example ${Number(select.value) + 1}`,
+                    true,
+                ),
+            );
+        };
+        select.addEventListener("change", showExample);
+        if (species.examples.length > 1) card.append(select);
+        showExample();
+    } else
+        species.examples.forEach((example, i) =>
+            examples.append(
+                sound(example, `${species.scientificName}, example ${i + 1}`),
+            ),
+        );
+    if (!species.examples.length)
+        examples.append(element("p", "No reference audio available."));
+    card.append(examples);
+    return card;
+}
 
-        if (!response.ok) {
-            throw new Error(`HTTP error: ${response.status}`);
+function renderReferences(references) {
+    $("#frog-card").replaceChildren(referenceCard(references.target, true));
+    $(".frog-carousel").replaceChildren(
+        ...references.comparisons.map((species) => {
+            const li = element("li");
+            li.append(referenceCard(species));
+            return li;
+        }),
+    );
+}
+
+// Native radio groups support mouse, touch, and keyboard interaction.
+
+function renderRecordings() {
+    const list = $(".results-list");
+    list.replaceChildren();
+    batch.recordings.forEach((recording, i) => {
+        const li = element("li");
+        li.append(
+            element("h3", `Recording ${i + 1}`),
+            sound(recording, `Recording ${i + 1}`),
+        );
+        const choices = element("fieldset", null, "answer-options");
+        choices.append(element("legend", `Can you hear ${speciesId}?`));
+        for (const [value, text] of [
+            ["yes", "Yes"],
+            ["no", "No"],
+            ["unsure", "Unsure"],
+        ]) {
+            const label = element("label"),
+                input = element("input");
+            input.type = "radio";
+            input.name = `recording-${i}`;
+            input.value = value;
+            input.addEventListener("change", () => {
+                answers.set(recording.id, value);
+                pendingSubmission = null;
+                status.textContent = "";
+                updateProgress();
+            });
+            label.append(input, document.createTextNode(text));
+            choices.append(label);
         }
+        li.append(choices);
+        list.append(li);
+    });
+    if (!batch.recordings.length)
+        list.append(
+            element("li", "No recordings are waiting for this species."),
+        );
+}
 
-        const result = await response.json();
+// A species change starts a fresh batch, after the change handler confirms any edits.
 
-        console.log("Python response:", result);
-        status.textContent = "Data successfully received by Python!";
-
+async function loadSpecies(id) {
+    loading = true;
+    retry.hidden = true;
+    status.textContent = "Loading references and recordings…";
+    // Clear old media immediately so users cannot compare against the wrong target.
+    document.querySelectorAll("audio").forEach((audio) => audio.pause());
+    $("#frog-card").replaceChildren();
+    $(".frog-carousel").replaceChildren();
+    $(".results-list").replaceChildren();
+    answers.clear();
+    savedAnswers.clear();
+    batch = null;
+    pendingSubmission = null;
+    speciesId = id;
+    updateProgress();
+    try {
+        const [references, nextBatch] = await Promise.all([
+            provider.getReferenceSounds(id),
+            provider.getRecordings(id),
+        ]);
+        if (
+            new Set(nextBatch.recordings.map((item) => item.id)).size !==
+            nextBatch.recordings.length
+        )
+            throw new Error("Recording IDs must be unique within a batch.");
+        batch = nextBatch;
+        renderReferences(references);
+        renderRecordings();
+        status.textContent = "";
     } catch (error) {
-        console.error("Error:", error);
-        status.textContent = "Failed to send data: " + error.message;
-
+        status.textContent = `Could not load this species: ${error.message}`;
+        retry.hidden = false;
     } finally {
-        button.disabled = false;
+        loading = false;
+        updateProgress();
+    }
+}
+
+// User actions: species selection, saving, navigation protection, and loading retries.
+
+dropdown.addEventListener("change", () => {
+    if (
+        dirty() &&
+        !window.confirm("Discard unsaved answers and change species?")
+    ) {
+        dropdown.value = speciesId;
+        return;
+    }
+    loadSpecies(dropdown.value);
+});
+saveButton.addEventListener("click", async () => {
+    if (saving || loading || !dirty()) return;
+    // Reuse the ID after an ambiguous failure so retries cannot duplicate a batch.
+    pendingSubmission ||= buildSubmission(
+        speciesId,
+        batch.batchId,
+        batch.recordings,
+        new Map(
+            [...answers].filter(
+                ([id, label]) => savedAnswers.get(id) !== label,
+            ),
+        ),
+        crypto.randomUUID(),
+    );
+    // Lock answers and species until this snapshot has finished saving.
+    saving = true;
+    status.textContent = "Saving annotations…";
+    updateProgress();
+    try {
+        const result = await provider.saveAnnotations(pendingSubmission);
+        if (
+            result.submissionId !== pendingSubmission.submissionId ||
+            result.savedCount !== pendingSubmission.annotations.length
+        )
+            throw new Error("The server did not confirm the complete batch.");
+        // Answers become clean only after the entire submission is acknowledged.
+        answers.forEach((label, id) => savedAnswers.set(id, label));
+        pendingSubmission = null;
+        status.textContent =
+            window.annotationConfig.provider === "demo"
+                ? "Saved in this browser for demo purposes. No training data was sent to a server."
+                : "Annotations saved. Thank you!";
+    } catch (error) {
+        status.textContent = `Save failed: ${error.message} Your answers are still here; try saving again.`;
+    } finally {
+        saving = false;
+        updateProgress();
+    }
+});
+window.addEventListener("beforeunload", (event) => {
+    if (dirty()) {
+        event.preventDefault();
+        event.returnValue = "";
     }
 });
 
-function displayResults(data){
+// Play events do not bubble; capture them to prevent overlapping reference/test audio.
 
-    for(const [key,value] of Object.entries(data)){
-        let audio_path = "fake_data/download" + key + ".wav"
-        let spec_path = "fake_data/output" + key + ".png"
+document.addEventListener(
+    "play",
+    (event) => {
+        if (event.target.tagName === "AUDIO")
+            document.querySelectorAll("audio").forEach((audio) => {
+                if (audio !== event.target) audio.pause();
+            });
+    },
+    true,
+);
+retry.addEventListener("click", () =>
+    speciesId ? loadSpecies(speciesId) : initialize(),
+);
 
-        const audio = new Audio(audio_path);
-        audio.controls = true;
-        const spec = document.createElement("img")
-        spec.src = spec_path;
+// Startup is also the retry path when configuration or species loading fails.
 
-        const button = document.createElement("button")
-        button.classList.add("unlabeled")
-        button.innerText = "Unlabeled"
-        button.value = key
-
-        let example = document.createElement("li")
-        example.appendChild(spec)
-        example.appendChild(audio)
-        example.appendChild(button)
-        resultsCarousel.appendChild(example)
-        
-        console.log(key,value)
+async function initialize() {
+    loading = true;
+    retry.hidden = true;
+    status.textContent = "Loading species…";
+    updateProgress();
+    try {
+        provider = createProvider(window.annotationConfig);
+        $("#mode-note").textContent =
+            window.annotationConfig.provider === "demo"
+                ? "Demo mode · Sample recordings are reused for every species. Saves stay in this browser."
+                : "Answers will be saved to the annotation server.";
+        const species = await provider.listSpecies();
+        if (!species.length) throw new Error("No species are available.");
+        dropdown.replaceChildren(
+            ...species.map((item) => {
+                const option = element("option", item.scientificName);
+                option.value = item.id;
+                return option;
+            }),
+        );
+        await loadSpecies(dropdown.value);
+    } catch (error) {
+        dropdown.replaceChildren();
+        status.textContent = `Could not start annotation: ${error.message}`;
+        retry.hidden = false;
+    } finally {
+        loading = false;
+        updateProgress();
     }
-        
-
 }
 
-function createFrogCarousel(){
-    Papa.parse(species_path, {
-            delimiter: "\t",
-            download: true,
-            header: true,
-            complete: function(results){
-                const carousel = document.querySelector(".frog-carousel")
-
-                results.data.forEach(row => {
-                    if(row.display === '1'){
-                        audio_files = Papa.parse(row.audio_files).data[0]
-                        spec_files = Papa.parse(row.spec_files).data[0]
-                        let newCard = createFrogCard(row.common_name, row.scientific_name, row.code, audio_files, spec_files);
-                        let newLi = document.createElement("li")
-
-                        newLi.appendChild(newCard)
-                        carousel.appendChild(newLi);
-                    }
-                    
-                })
-               
-                
-                
-            }
-
-        })
-}
-
-
-
-createFrogCarousel()
-displayResults(fake_data)
-parseFile()
-// Recieving
-
-    // window_id:
-    // recording_id:
-    // offsets:
-    // dataset_name:
-    // uri:
-    // score:
-    // labels:
-
-// Sending
-
-    // id: (annotation id = -1)
-    // recording_id:
-    // offsets:
-    // label:
-    // label_type:
-    // provenance:
+initialize();

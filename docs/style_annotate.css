@@ -1,115 +1,355 @@
-*, *::before, *::after {
-  box-sizing: border-box;
+/* Base page layout and typography. */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
 }
-.annotate-card{
-    margin: 0;
-    /* max-width: 100%; */
+
+.annotate-card {
+    width: 100%;
+    padding: 24px;
     display: flex;
     flex-direction: column;
-    place-items: center;
-    /* height: 65vh; */
-
-    /* grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); */
-    gap: 20px;
-    /* column-gap: 20px; */
-    padding: 5% 5%;
-    /* overflow-x: scroll; */
-    width: 100%;
-    overflow: hidden;
+    gap: 16px;
+    min-width: 0;
 }
 
-.container{
-    /* height: 100vh; */
+.annotate-card h2 {
+    font-size: 1.2rem;
+    margin: 0 0 12px;
 }
 
-#results-container{
-    height: 90%;
+.annotate-card h3 {
+    font-size: 1rem;
+    margin: 0 0 8px;
+}
+
+.annotate-card p {
+    line-height: 1.5;
+    margin: 4px 0;
+}
+
+.annotate-card section,
+.annotate-card details {
+    min-width: 0;
     width: 100%;
 }
 
-.frog-container{
+#mode-note {
+    font-size: 0.9rem;
+}
+
+#scientific {
     width: 100%;
+    padding: 12px;
+    font: inherit;
+    border: 1px solid #526b52;
+    border-radius: 5px;
+}
+
+/* Shared reference cards and media controls. */
+.annotate-card .frog-card {
+    width: 100%;
+    max-width: none;
+    height: auto;
+    padding: 16px;
+    align-items: stretch;
+}
+
+#frog-card .frog-card {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 8px 16px;
+    text-align: left;
+}
+
+#frog-card h3,
+#frog-card p {
+    grid-column: 1 / -1;
+}
+
+#frog-card .frog-card > img {
+    max-height: 140px;
+}
+
+.reference-examples {
     display: flex;
+    overflow-x: auto;
+    gap: 16px;
+    min-width: 0;
 }
 
-.results-carousel li img{
+.reference-examples .sound-example {
+    flex: 0 0 100%;
+    min-width: 0;
+}
+
+.annotate-card img {
     width: 100%;
-    /* max-width: 200px; */
-    /* max-height: 200px; */
-    /* border-radius: 10px; */
     object-fit: contain;
 }
 
-#frog-card{
-    display: flex;
-    flex-direction: column;
-    gap: 15%;
-    height: 40%;
-}
-
-.frog-carousel{
+.annotate-card audio {
+    display: block;
     width: 100%;
-
-    overflow-x: scroll;
-    scroll-snap-type: x mandatory;
-
+    margin-top: 8px;
 }
 
-.frog-carousel li{
-  flex: 0 0 calc(100% - 10px);
-  max-width: 100%;
-  width: fit-content;
-  scroll-snap-align: center;
+.annotate-card summary {
+    cursor: pointer;
+    padding: 12px 0;
+    font-weight: bold;
 }
 
-.results-carousel{
-  /* max-width: 20%; */
-  /* height: 750px; */
-  width: 100%;
-  padding: 5px;
-  margin: 0px;
-  display: flex;
-  flex-direction: row;
-  gap: 10px;
-  overflow-x: scroll;
-  /* scroll-snap-type: y mandatory; */
-  /* anchor-name: var(--anchor-id); */
-  position: relative;
-  overscroll-behavior-y: contain;
-  /* overflow-x: hidden; */
-  box-sizing: border-box;
+.frog-carousel {
+    width: 100%;
 }
 
-
-.results-carousel li {
-  box-sizing: border-box;
-  list-style-type: none;
-  background-color: #c1daff;
-  border: 1px solid #dddddd;
-  border-radius: 5px;
-  margin: 5px;
-  padding: 15px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 5%;
-  height: 70%;
-
-  flex: 0 0 calc(100% - 10px);
-  max-width: 100%;
-  scroll-snap-align: center;
+.frog-carousel > li {
+    flex: 0 0 260px;
 }
 
-.results-carousel li button{
-    width: 20%;
+.frog-carousel .frog-card > img {
+    height: 100px;
 }
 
-
-.results-carousel li:nth-child(even) {
-  background-color: rgb(126, 187, 187);
+/* Recording cards and explicit Yes / No / Unsure answers. */
+.results-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+    padding: 0;
+    gap: 16px;
 }
 
-#sendbutton{
-    position: absolute;
+.results-list > li {
+    min-width: 0;
+    margin: 0;
+    padding: 16px;
+    background: #c1daff;
+    border: 1px solid #64829c;
+}
+
+.results-list > li:nth-child(even) {
+    background: rgb(126, 187, 187);
+}
+
+.answer-options {
+    border: 0;
+    padding: 0;
+    margin: 12px 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.answer-options legend {
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+}
+
+.answer-options label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 8px;
+    background: aliceblue;
+    border: 2px solid transparent;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.answer-options label:has(input:checked) {
+    border-color: #006411;
+    background: #d7efcd;
+    font-weight: bold;
+}
+
+.annotate-card button {
+    font: inherit;
+    padding: 12px 16px;
+    border-radius: 5px;
+    border: 1px solid #526b52;
+    cursor: pointer;
+}
+
+.annotate-card button:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.annotate-card :focus-visible {
+    outline: 3px solid #164c89;
+    outline-offset: 3px;
+}
+
+/* Keep progress and saving available at the bottom of the viewport. */
+.save-bar {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: #e5f1df;
+    border: 1px solid #526b52;
+    border-radius: 5px;
+    z-index: 1;
+}
+
+#sendButton {
+    background: #006411;
+    color: white;
+}
+
+.media-error {
+    font-size: 0.85rem;
+    color: #682616;
+}
+
+/* Smaller phones: reduce spacing and keep controls within the viewport. */
+@media (max-width: 560px) {
+    .annotate-card {
+        padding: 16px;
+    }
+    .results-list {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    #frog-card .frog-card {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    #frog-card .frog-card > img {
+        display: none;
+    }
+    .navbar a {
+        font-size: 18px;
+        margin: 8px;
+    }
+}
+
+/* Desktop comparison workspace: equally wide reference and recording columns.
+   Later target-specific rules override the shared card/carousel styles above. */
+.container {
+    max-width: 1120px;
+}
+
+.annotation-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+}
+
+.reference-panel {
+    position: sticky;
+    top: 12px;
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+    min-width: 0;
+    padding: 4px;
+}
+
+.target-reference {
+    background: #a5cf9a;
+}
+
+#frog-card .frog-card {
+    display: flex;
+    gap: 8px;
+    text-align: left;
+}
+
+#frog-card .frog-card > img {
+    display: none;
+}
+
+#frog-card select {
+    width: 100%;
+    padding: 8px;
+    font: inherit;
+}
+
+#frog-card .reference-examples {
+    display: block;
+    overflow: visible;
+}
+
+#frog-card audio {
+    max-width: none;
+}
+
+.reference-spectrogram summary {
+    font-size: 0.9rem;
+}
+
+.reference-spectrogram img,
+.results-list .sound-example > img {
+    aspect-ratio: 2 / 1;
+}
+
+.results-list {
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: 16px;
+}
+
+.results-list > li {
+    scroll-margin-top: 16px;
+}
+
+.other-references {
+    margin-top: 16px;
+}
+
+/* Keep this breakpoint aligned with mobileLayout in annotate.js. */
+@media (max-width: 760px) {
+    .annotation-workspace {
+        display: block;
+    }
+    /* Remove the sidebar box so only its target section stays sticky.
+       Other frog references remain in normal page flow below it. */
+    .reference-panel {
+        display: contents;
+    }
+    .target-reference {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        padding: 8px 0;
+        border-bottom: 2px solid #526b52;
+    }
+    #target-heading {
+        font-size: 1rem;
+        margin-bottom: 6px;
+    }
+    #frog-card .frog-card {
+        padding: 10px;
+        gap: 4px;
+    }
+    #frog-card .frog-card > p {
+        display: none;
+    }
+    #frog-card .sound-example {
+        display: flex;
+        flex-direction: column;
+    }
+    #frog-card audio {
+        order: -1;
+        margin: 0;
+        height: 40px;
+    }
+    #frog-card .reference-spectrogram summary {
+        padding: 6px 0;
+    }
+    #frog-card .reference-spectrogram[open] {
+        max-height: 25dvh;
+        overflow-y: auto;
+    }
+    .other-references {
+        margin: 12px 0 24px;
+    }
+    .results-list > li {
+        scroll-margin-top: 260px;
+    }
 }

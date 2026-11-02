@@ -1,63 +1,83 @@
-<!DOCTYPE html>
+﻿<!doctype html>
 <html lang="en">
-
-<head>
-    <title>Osa Anurans</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="style_annotate.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.6.1/papaparse.min.js"></script>
-    
-
-</head>
-
-<body>
-    <div class="container">
-        <div class="navbar">
-
-            <h1>Ranas de Peninsula Osa</h1>
-
-            <a href="../index.html">Frogs</a>
-            <a href="./learn.html">Learn</a>
-            <a href="./annotate.html">Annotate</a>
-        </div>
-        <div id="backdrop"></div>
-
-        
-
-        <div class="annotate-card" id="card-container">
-            
-            <div class="frog-container">
-                <div id="frog-card">
-                    <select name="scientific" id="scientific"></select>
+    <head>
+        <meta charset="utf-8" />
+        <title>Annotate · Osa Anurans</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="stylesheet" href="style.css" />
+        <link rel="stylesheet" href="style_annotate.css" />
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.6.1/papaparse.min.js"></script>
+    </head>
+    <body>
+        <div class="container">
+            <nav class="navbar" aria-label="Main navigation">
+                <h1>Ranas de Peninsula Osa</h1>
+                <a href="../index.html">Frogs</a>
+                <a href="learn.html">Learn</a>
+                <a href="annotate.html" aria-current="page">Annotate</a>
+            </nav>
+            <main class="annotate-card">
+                <!-- Instructions and target selection apply to both columns. -->
+                <header>
+                    <h2>Help identify frog calls</h2>
+                    <p>
+                        Listen to the target frog, compare other species, then
+                        decide whether you hear the target in each recording.
+                    </p>
+                    <p id="mode-note"></p>
+                </header>
+                <label for="scientific">Target species</label>
+                <select id="scientific" disabled>
+                    <option>Loading species…</option>
+                </select>
+                <div class="annotation-workspace">
+                    <!-- Sticky sidebar on desktop; compact sticky target on mobile. -->
+                    <aside
+                        class="reference-panel"
+                        aria-label="Reference sounds"
+                    >
+                        <section
+                            class="target-reference"
+                            aria-labelledby="target-heading"
+                        >
+                            <h2 id="target-heading">1. Target reference</h2>
+                            <div id="frog-card"></div>
+                        </section>
+                        <details class="other-references">
+                            <summary>Compare sounds of other frogs</summary>
+                            <ul
+                                class="frog-carousel"
+                                aria-label="Other frog species"
+                            ></ul>
+                        </details>
+                    </aside>
+                    <!-- Recording cards and answer controls are rendered by annotate.js. -->
+                    <section aria-labelledby="results-heading">
+                        <h2 id="results-heading">
+                            2. Is the target frog audible?
+                        </h2>
+                        <p>
+                            Choose Yes, No, or Unsure. You can change answers
+                            before saving. Unanswered recordings are skipped.
+                        </p>
+                        <ul
+                            class="results-list"
+                            aria-label="Recordings to annotate"
+                        ></ul>
+                    </section>
                 </div>
-                <ul class="frog-carousel"></ul>
-            </div>
-            
-            <div id="results-container">
-                <ul class="results-carousel"></ul>
-                <button id="sendButton">
-                Send data to Python
-            </button>
-            </div>
-            
-
-            
-
-            <p id="status"></p>
-
-
+                <!-- Shared batch progress, save feedback, and load-retry controls. -->
+                <div class="save-bar">
+                    <p id="progress" role="status"></p>
+                    <button id="sendButton" type="button" disabled>
+                        Save annotations
+                    </button>
+                </div>
+                <p id="status" role="status" aria-live="polite"></p>
+                <button id="retry" type="button" hidden>Retry loading</button>
+            </main>
         </div>
-        
-        
-        
-
-
-        
-
-    </div>
-    <script src="annotate.js" defer></script>
-</body>
-
-
+        <script src="annotation-config.js"></script>
+        <script type="module" src="annotate.js"></script>
+    </body>
 </html>
