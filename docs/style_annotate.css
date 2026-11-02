@@ -1,8 +1,115 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+.annotate-card{
+    margin: 0;
+    /* max-width: 100%; */
+    display: flex;
+    flex-direction: column;
+    place-items: center;
+    /* height: 65vh; */
 
-.card-container{
-    height: 80vh;
+    /* grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); */
+    gap: 20px;
+    /* column-gap: 20px; */
+    padding: 5% 5%;
+    /* overflow-x: scroll; */
+    width: 100%;
+    overflow: hidden;
 }
 
 .container{
-    height: 80vh;
+    /* height: 100vh; */
+}
+
+#results-container{
+    height: 90%;
+    width: 100%;
+}
+
+.frog-container{
+    width: 100%;
+    display: flex;
+}
+
+.results-carousel li img{
+    width: 100%;
+    /* max-width: 200px; */
+    /* max-height: 200px; */
+    /* border-radius: 10px; */
+    object-fit: contain;
+}
+
+#frog-card{
+    display: flex;
+    flex-direction: column;
+    gap: 15%;
+    height: 40%;
+}
+
+.frog-carousel{
+    width: 100%;
+
+    overflow-x: scroll;
+    scroll-snap-type: x mandatory;
+
+}
+
+.frog-carousel li{
+  flex: 0 0 calc(100% - 10px);
+  max-width: 100%;
+  width: fit-content;
+  scroll-snap-align: center;
+}
+
+.results-carousel{
+  /* max-width: 20%; */
+  /* height: 750px; */
+  width: 100%;
+  padding: 5px;
+  margin: 0px;
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  overflow-x: scroll;
+  /* scroll-snap-type: y mandatory; */
+  /* anchor-name: var(--anchor-id); */
+  position: relative;
+  overscroll-behavior-y: contain;
+  /* overflow-x: hidden; */
+  box-sizing: border-box;
+}
+
+
+.results-carousel li {
+  box-sizing: border-box;
+  list-style-type: none;
+  background-color: #c1daff;
+  border: 1px solid #dddddd;
+  border-radius: 5px;
+  margin: 5px;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5%;
+  height: 70%;
+
+  flex: 0 0 calc(100% - 10px);
+  max-width: 100%;
+  scroll-snap-align: center;
+}
+
+.results-carousel li button{
+    width: 20%;
+}
+
+
+.results-carousel li:nth-child(even) {
+  background-color: rgb(126, 187, 187);
+}
+
+#sendbutton{
+    position: absolute;
 }
