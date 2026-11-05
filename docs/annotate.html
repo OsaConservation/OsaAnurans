@@ -2,6 +2,7 @@
 <html lang="en">
     <head>
         <meta charset="utf-8" />
+        <meta name="robots" content="noindex, nofollow">
         <title>Annotate · Osa Anurans</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <link rel="stylesheet" href="style.css" />
@@ -26,6 +27,23 @@
                     </p>
                     <p id="mode-note"></p>
                 </header>
+                <section id="reviewer-login" aria-labelledby="login-heading">
+                    <h2 id="login-heading">Reviewer access</h2>
+                    <form id="login-form">
+                        <label for="reviewer-password">Shared reviewer password</label>
+                        <input id="reviewer-password" type="password" autocomplete="current-password" required>
+                        <button id="login-button" type="submit">Sign in</button>
+                        <p id="login-error" role="alert"></p>
+                    </form>
+                </section>
+                <div id="reviewer-workspace" hidden>
+                <div class="reviewer-bar" id="reviewer-controls">
+                    <div class="reviewer-name-field">
+                        <label for="reviewer-name">Your name</label>
+                        <input id="reviewer-name" type="text" maxlength="100" autocomplete="name" placeholder="Name shown on your annotations">
+                    </div>
+                    <button id="logout-button" type="button">Log out</button>
+                </div>
                 <label for="scientific">Target species</label>
                 <select id="scientific" disabled>
                     <option>Loading species…</option>
@@ -56,9 +74,13 @@
                         <h2 id="results-heading">
                             2. Clips to review
                         </h2>
+                        <div id="batch-size-control">
+                            <label for="batch-size">Clips per batch: <output id="batch-size-value" for="batch-size">5</output></label>
+                            <input id="batch-size" type="range" min="1" max="20" step="1" value="5">
+                        </div>
                         <p>
                             Choose Yes, No, or Unsure. You can change answers
-                            before saving. Unanswered clips are skipped.
+                            before submitting. Only answered clips are submitted. Submit before moving to the next batch.
                         </p>
                         <ul
                             class="results-list"
@@ -70,11 +92,13 @@
                 <div class="save-bar">
                     <p id="progress" role="status"></p>
                     <button id="sendButton" type="button" disabled>
-                        Save annotations
+                        Submit answers
                     </button>
                 </div>
+                <button id="edit-pending" type="button" hidden>Edit pending answers</button>
                 <p id="status" role="status" aria-live="polite"></p>
                 <button id="retry" type="button" hidden>Retry loading</button>
+                </div>
             </main>
         </div>
         <script src="annotation-config.js"></script>

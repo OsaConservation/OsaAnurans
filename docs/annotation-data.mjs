@@ -1,33 +1,253 @@
+import { ReviewerSession } from "./reviewer-session.mjs";
+
 /**
  * Data boundary for the annotation page. Both providers expose the same async
  * methods so the UI can use demo data, a local server, or a remote server.
  * Response shapes and backend requirements are documented in ANNOTATION_API.md.
  */
 export class ServerProvider {
-    constructor(baseUrl) {
+    constructor(baseUrl, storage = getSessionStorage(), api = new ReviewerSession(baseUrl)) {
         this.baseUrl = baseUrl.replace(/\/$/, "");
+        this.storage = storage;
+        this.api = api;
+        this.cacheKey = `annotation-catalog-v1:${this.baseUrl}`;
+
+        const cached = this.readCache();
+        this.species = cached?.species;
+        this.references = cached?.references;
+    }
+
+    readCache() {
+        try {
+            const cached = JSON.parse(this.storage?.getItem(this.cacheKey) || "null");
+            if (!Array.isArray(cached?.species)) return null;
+            if (cached.species.some((item) => !item || typeof item.id !== "string" ||
+                typeof item.scientificName !== "string" || typeof item.commonName !== "string")) return null;
+            if (cached.references && (!Array.isArray(cached.references.entries) ||
+                cached.references.entries.some((item) => !item || !Array.isArray(item.clips)))) {
+                delete cached.references;
+            }
+
+            const remaining = Date.parse(cached.references?.urlsExpireAt) - Date.now();
+            if (!(remaining >= 60_000)) delete cached.references;
+
+            return cached;
+        } catch {
+            return null;
+        }
+    }
+
+    writeCache() {
+        // Session-only storage; expired signed URLs are never reused.
+        try {
+            this.storage?.setItem(this.cacheKey, JSON.stringify({
+                species: this.species,
+                references: this.references,
+            }));
+        } catch {
+            // Storage restrictions must not prevent catalog loading.
+        }
     }
 
     async listSpecies() {
-        // TODO: GET /species; authenticate and validate response.
-        throw new Error("Server species loading is not implemented yet.");
+        if (this.species) return this.species;
+        if (this.speciesPromise) return this.speciesPromise;
+
+        // Share concurrent requests; allow retries after failure.
+        this.speciesPromise = this.loadSpecies().catch((error) => {
+            this.speciesPromise = null;
+            throw error;
+        });
+
+        return this.speciesPromise;
+    }
+
+    async loadSpecies() {
+        const data = await this.getJson("/species?has_audio=true");
+        if (!Array.isArray(data?.species)) {
+            throw new Error("Invalid species response.");
+        }
+
+        this.species = data.species.map(parseSpecies);
+        this.writeCache();
+
+        return this.species;
     }
 
     async getReferenceSounds(speciesId) {
-        // TODO: GET /species/:speciesId/references; URL-encode speciesId.
-        throw new Error("Server reference loading is not implemented yet.");
+        const species = await this.listSpecies();
+        const target = species.find((item) => item.id === speciesId);
+        if (!target) throw new Error("Unknown target species.");
+
+        const references = await this.getReferences(species);
+
+        return {
+            target: references.entries.find((item) => item.id === speciesId),
+            comparisons: references.entries.filter((item) => item.id !== speciesId),
+        };
     }
 
-    async getCandidates(speciesId) {
-        // TODO: GET /species/:speciesId/candidates; return a stable batch ID.
-        throw new Error("Server candidate loading is not implemented yet.");
+    async getReferences(species) {
+        if (this.referencesAreFresh()) return this.references;
+        if (this.referencesPromise) return this.referencesPromise;
+
+        this.referencesPromise = this.loadReferences(species).finally(() => {
+            this.referencesPromise = null;
+        });
+
+        return this.referencesPromise;
     }
 
-    async saveAnnotations(batch) {
-        // TODO: POST /annotations using submissionId for idempotent retries.
-        // Resolve only after the entire batch is durably saved. Reject on errors.
-        throw new Error("Server annotation saving is not implemented yet.");
+    referencesAreFresh() {
+        if (!this.references) return false;
+
+        const remaining = Date.parse(this.references.urlsExpireAt) - Date.now();
+        return remaining >= 60_000;
     }
+
+    async loadReferences(species) {
+        const query = new URLSearchParams();
+        species.forEach((item) => query.append("species_id", item.id));
+
+        const data = await this.getJson(`/references?${query}`);
+        if (!data?.references || !Number.isFinite(Date.parse(data.urls_expire_at))) {
+            throw new Error("Invalid reference response.");
+        }
+
+        const entries = species.map((item) => {
+            const clips = data.references[item.id];
+            if (!Array.isArray(clips)) {
+                throw new Error("Invalid reference response.");
+            }
+
+            return {
+                ...item,
+                urlsExpireAt: data.urls_expire_at,
+                clips: clips.map(parseReferenceClip),
+            };
+        });
+
+        // Replace the cache only after the entire response passes validation.
+        this.references = { entries, urlsExpireAt: data.urls_expire_at };
+        this.writeCache();
+        return this.references;
+    }
+
+    async getJson(path, signal) {
+        const response = await this.api.request(path, {
+            signal,
+            cache: "no-store",
+            credentials: "omit",
+        });
+        if (!response.ok) {
+            throw new Error(`Catalog request failed (${response.status}).`);
+        }
+
+        return response.json();
+    }
+
+    async getCandidates(speciesId, { count = 15, cursor, signal } = {}) {
+        const query = new URLSearchParams({ species_id: speciesId, count: String(count) });
+        if (cursor != null) query.set("cursor", cursor);
+
+        const data = await this.getJson(`/candidates?${query}`, signal);
+        if (
+            !Array.isArray(data?.candidates) ||
+            !(data.next_cursor === null || typeof data.next_cursor === "string") ||
+            !Number.isFinite(Date.parse(data.urls_expire_at))
+        ) throw new Error("Invalid candidate response.");
+
+        const clips = data.candidates.map((item) => parseCandidate(item, speciesId));
+        if (new Set(clips.map((clip) => clip.id)).size !== clips.length) {
+            throw new Error("Duplicate candidate IDs.");
+        }
+
+        return {
+            speciesId, count, inputCursor: cursor ?? null,
+            nextCursor: data.next_cursor,
+            urlsExpireAt: data.urls_expire_at,
+            clips,
+        };
+    }
+
+    async saveAnnotations(submission) {
+        const response = await this.api.request("/annotations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(submission),
+        });
+        if (!response.ok) {
+            const error = new Error(response.status >= 500
+                ? "Outcome uncertain: the write may have succeeded. Manual retry may create duplicates."
+                : `Submission rejected (${response.status}).`);
+            error.status = response.status;
+            throw error;
+        }
+        const receipt = await response.json();
+        if (receipt.submission_id !== submission.submission_id || receipt.accepted_count !== submission.annotations.length) {
+            throw new Error("Outcome uncertain: the server did not confirm the complete submission.");
+        }
+        return receipt;
+    }
+
+}
+
+function parseCandidate(item, speciesId) {
+    if (
+        !item || typeof item.candidate_id !== "string" || !item.candidate_id ||
+        typeof item.window_id !== "string" || typeof item.recording_id !== "string" ||
+        item.query_species_id !== speciesId || typeof item.audio_url !== "string" ||
+        !Number.isFinite(item.start_seconds) || !Number.isFinite(item.end_seconds) ||
+        item.start_seconds < 0 || item.end_seconds <= item.start_seconds ||
+        !(item.spectrogram_url == null || typeof item.spectrogram_url === "string")
+    ) throw new Error("Invalid candidate response.");
+
+    return {
+        id: item.candidate_id,
+        windowId: item.window_id,
+        querySpeciesId: item.query_species_id,
+        recordingId: item.recording_id,
+        createdAt: item.created_at,
+        score: item.score,
+        offsets: [item.start_seconds, item.end_seconds],
+        audioUrl: item.audio_url,
+        spectrogramUrl: item.spectrogram_url || null,
+    };
+}
+
+function parseSpecies(item) {
+    if (
+        !item ||
+        typeof item.species_id !== "string" ||
+        !item.species_id ||
+        typeof item.scientific_name !== "string" ||
+        typeof item.common_name !== "string"
+    ) {
+        throw new Error("Invalid species response.");
+    }
+
+    return {
+        id: item.species_id,
+        scientificName: item.scientific_name,
+        commonName: item.common_name,
+    };
+}
+
+function parseReferenceClip(clip) {
+    if (
+        !clip ||
+        typeof clip.reference_id !== "string" ||
+        typeof clip.audio_url !== "string" ||
+        !(clip.spectrogram_url === null || typeof clip.spectrogram_url === "string")
+    ) {
+        throw new Error("Invalid reference response.");
+    }
+
+    return {
+        id: clip.reference_id,
+        audioUrl: clip.audio_url,
+        spectrogramUrl: clip.spectrogram_url,
+    };
 }
 
 // Each sample is [window ID, source recording ID, start seconds, end seconds, source URI].
@@ -40,11 +260,6 @@ const windows = [
     [22970, 428, 10, 15, "sw1/1Jsw1_20260917_225400.wav"],
 ];
 export class DemoProvider {
-    // Injectable storage lets tests simulate persistence errors without a browser.
-    constructor(storage = window.localStorage) {
-        this.storage = storage;
-    }
-
     async listSpecies() {
         // Share one CSV request across species and reference loading. A failed
         // request clears the cached promise below so the next attempt can retry.
@@ -135,24 +350,10 @@ export class DemoProvider {
         };
     }
 
-    async saveAnnotations(batch) {
-        // Browser-only demo storage. Repeated submission IDs do not add duplicate batches.
-        const key = "osa-demo-annotations-v1";
-        const saved = JSON.parse(this.storage.getItem(key) || "[]");
-        if (!saved.some((item) => item.submissionId === batch.submissionId)) {
-            saved.push(batch);
-            this.storage.setItem(key, JSON.stringify(saved));
-        }
-        console.log("Saved")
-        console.log(saved)
-        this.storage.clear()
-
-
-        return {
-            submissionId: batch.submissionId,
-            savedCount: batch.annotations.length,
-        };
+    async saveAnnotations() {
+        throw new Error("Saving is unavailable in demo mode. Answers stay in this page only.");
     }
+
 }
 
 export function createProvider(config) {
@@ -186,4 +387,12 @@ export function buildSubmission(
                 label: answers.get(item.id),
             })),
     };
+}
+
+function getSessionStorage() {
+    try {
+        return globalThis.sessionStorage;
+    } catch {
+        return null;
+    }
 }

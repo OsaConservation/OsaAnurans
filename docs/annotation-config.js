@@ -1,5 +1,5 @@
-// Switch to server once its provider TODOs are implemented. Local and remote use the same adapter.
+// Cloud API requests require the shared reviewer password.
 window.annotationConfig = {
-    provider: "demo",
-    baseUrl: "http://127.0.0.1:8080/api",
+    provider: "server",
+    baseUrl: "https://annotationservice-167659324212.us-south1.run.app",
 };
