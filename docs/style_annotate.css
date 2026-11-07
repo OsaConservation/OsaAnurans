@@ -107,20 +107,23 @@
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: 260px;
-    grid-template-rows: auto;
-    align-items: start;
-    gap: 8px 10px;
+    grid-template-rows: auto auto auto auto auto;
+    align-items: stretch;
+    gap: 3px 10px;
 }
 
 .frog-carousel > li {
-    display: block;
+    display: grid;
+    grid-row: span 5;
+    grid-template-rows: subgrid;
     min-width: 0;
 }
 
 .frog-carousel .frog-card {
-    display: flex;
-    gap: 6px;
-    justify-content: flex-start;
+    display: grid;
+    grid-row: span 5;
+    grid-template-rows: subgrid;
+    justify-content: stretch;
 }
 
 .frog-carousel .frog-card > h3 {
@@ -133,18 +136,45 @@
     margin: 0;
 }
 
-.frog-carousel .frog-card > .media-image img {
+.frog-carousel .frog-card > .media-image {
     grid-row: 3;
+}
+
+.frog-carousel .frog-card > .media-image img {
     height: 100px;
 }
 
+.frog-carousel .reference-navigation { grid-row: 4; margin: 0; }
+
 .frog-carousel .reference-clips {
-    grid-row: 4;
+    grid-row: 5;
     align-self: stretch;
 }
 
-.frog-carousel .audio-clip > .media-image img {
+.frog-carousel .audio-clip { width: 100%; }
+.frog-carousel .reference-spectrogram-slot {
+    width: 100%;
     aspect-ratio: 2 / 1;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    min-width: 0;
+}
+.frog-carousel .reference-spectrogram-slot > .media-image {
+    position: relative;
+    width: 100%; height: 100%; min-height: 0;
+}
+.frog-carousel .reference-spectrogram-slot img {
+    display: block;
+    width: 100%; height: 100%; object-fit: contain;
+}
+.frog-carousel .reference-spectrogram-slot .media-loading {
+    position: absolute; top: 4px; left: 4px; right: 4px;
+    margin: 0; padding: 4px; background: #f5f8f3;
+}
+.frog-carousel .reference-spectrogram-placeholder {
+    background: #e8efe4; color: #52645b; font-size: .85rem;
+    padding: 8px; text-align: center;
 }
 
 /* Clip cards and explicit Yes / No / Unsure answers. */
@@ -432,6 +462,8 @@
 .reference-navigation button:disabled {
     opacity: 0.4;
 }
+
+.reference-navigation-placeholder { visibility: hidden; pointer-events: none; }
 
 [hidden] { display: none !important; }
 #login-form { display: grid; gap: 12px; max-width: 420px; }

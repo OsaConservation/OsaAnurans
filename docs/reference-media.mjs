@@ -77,10 +77,13 @@ export function sound(clip, label, isTarget = false) {
                 image(clip.spectrogramUrl, `Spectrogram: ${label}`, "eager", (value) => updateTargetState("spectrogram", value)),
             );
             wrapper.append(details);
-        } else
-            wrapper.append(
-                image(clip.spectrogramUrl, `Spectrogram: ${label}`),
-            );
+        } else {
+            const slot = element("div", null, "reference-spectrogram-slot");
+            slot.append(image(clip.spectrogramUrl, `Spectrogram: ${label}`));
+            wrapper.append(slot);
+        }
+    } else if (!isTarget) {
+        wrapper.append(element("div", "No spectrogram available", "reference-spectrogram-slot reference-spectrogram-placeholder"));
     }
     const audio = element("audio");
     const indicator = loadingIndicator("Loading audio...");
@@ -179,7 +182,13 @@ function referenceCard(species, isTarget = false, initialIndex = 0) {
         showClip();
     });
 
-    if (species.clips.length > 1) card.append(navigation);
+    if (species.clips.length === 1 && !isTarget) {
+        // Keep the same measured height as real controls, without keyboard stops.
+        navigation.classList.add("reference-navigation-placeholder");
+        navigation.setAttribute("aria-hidden", "true");
+        navigation.inert = true;
+    }
+    if (species.clips.length > 1 || !isTarget) card.append(navigation);
     showClip();
     card.append(clips);
     return card;
