@@ -3,7 +3,7 @@ import { createAnnotationSummary } from "./annotation-summary.mjs";
 ﻿import { element } from "./annotation-dom.mjs";
 import { renderReferences, sound } from "./reference-media.mjs";
 import { candidatePlayer } from "./candidate-player.mjs";
-import { CandidateCursorError, createProvider } from "./annotation-data.mjs";
+import { CandidateCursorError, createProvider } from "./annotation-data.mjs?v=species-counts-1";
 
 // Page controls. All reads and saves go through the configured data provider.
 
