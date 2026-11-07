@@ -284,8 +284,8 @@ as the input format:
 The action saves local embeddings and exact model-input WAVs. Cloud audio goes to
 `references/<species>/<reference>.wav` and `<configured window prefix>/<window>.wav`.
 Existing references are reused after comparing their audio; their IDs, URIs, and
-spectrograms are preserved. New references have no spectrogram and display audio
-only. Reference spectrogram generation is deferred.
+spectrograms are preserved. When a reference has no spectrogram URL, the website
+generates one from its audio using the same renderer as candidate spectrograms.
 
 One stable `present` annotation per species/window is added with annotator
 `new-species`. Rerunning the same inputs preserves votes and creation timestamps.

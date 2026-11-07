@@ -1,4 +1,5 @@
 import { element } from "./annotation-dom.mjs";
+import { localSpectrogram } from "./local-spectrogram.mjs?v=reference-spectrogram-1";
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -39,7 +40,7 @@ mobileLayout.addEventListener("change", () => {
 });
 export function sound(clip, label, isTarget = false) {
     const wrapper = element("div", null, "audio-clip");
-    const state = { audio: "loading", spectrogram: clip.spectrogramUrl ? "loading" : "none" };
+    const state = { audio: "loading", spectrogram: "loading" };
     const feedback = element("div", null, "target-media-status");
     const feedbackTitle = element("strong");
     const feedbackDetail = element("span");
@@ -61,29 +62,26 @@ export function sound(clip, label, isTarget = false) {
             : failed ? "Target reference needs attention" : "Target reference ready";
         feedbackDetail.textContent = [
             state.audio === "ready" ? "Audio ready to play" : state.audio === "error" ? "Audio unavailable" : "Audio loading…",
-            state.spectrogram === "none" ? "No spectrogram available"
-                : state.spectrogram === "ready" ? "Spectrogram ready"
+            state.spectrogram === "ready" ? "Spectrogram ready"
                 : state.spectrogram === "error" ? "Spectrogram unavailable" : "Spectrogram loading…",
         ].join(" · ");
         wrapper.setAttribute("aria-busy", String(pending));
     }
     updateTargetState("audio", "loading");
-    if (clip.spectrogramUrl) {
-        if (isTarget) {
-            const details = element("details", null, "reference-spectrogram");
-            details.open = !mobileLayout.matches;
-            details.append(
-                element("summary", "Target spectrogram"),
-                image(clip.spectrogramUrl, `Spectrogram: ${label}`, "eager", (value) => updateTargetState("spectrogram", value)),
-            );
-            wrapper.append(details);
-        } else {
-            const slot = element("div", null, "reference-spectrogram-slot");
-            slot.append(image(clip.spectrogramUrl, `Spectrogram: ${label}`));
-            wrapper.append(slot);
-        }
-    } else if (!isTarget) {
-        wrapper.append(element("div", "No spectrogram available", "reference-spectrogram-slot reference-spectrogram-placeholder"));
+    const alt = `Spectrogram: ${label}`;
+    const onState = (value) => updateTargetState("spectrogram", value);
+    const spectrogram = clip.spectrogramUrl
+        ? image(clip.spectrogramUrl, alt, isTarget ? "eager" : "lazy", isTarget ? onState : null)
+        : localSpectrogram(clip, undefined, { alt, eager: isTarget, onState });
+    if (isTarget) {
+        const details = element("details", null, "reference-spectrogram");
+        details.open = !mobileLayout.matches;
+        details.append(element("summary", "Target spectrogram"), spectrogram);
+        wrapper.append(details);
+    } else {
+        const slot = element("div", null, "reference-spectrogram-slot");
+        slot.append(spectrogram);
+        wrapper.append(slot);
     }
     const audio = element("audio");
     const indicator = loadingIndicator("Loading audio...");

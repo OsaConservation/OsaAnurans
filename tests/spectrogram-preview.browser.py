@@ -20,7 +20,7 @@ try:
         errors = []
         page.on('pageerror', lambda error: errors.append(str(error)))
         page.goto(base + '/docs/annotate.html')
-        page.evaluate("() => import('./annotate.js?v=species-counts-1')")
+        page.evaluate("() => import(document.querySelector('script[type=module]').src)")
         # Exercise the installed preview without authenticating or changing cloud data.
         page.evaluate('''() => {
             document.querySelector('#annotator-login').hidden = true;
@@ -85,7 +85,7 @@ try:
 
         # Generate an actual local spectrogram and verify dynamically inserted images.
         page.evaluate('''async () => {
-            const { localSpectrogram } = await import('./local-spectrogram.mjs');
+            const { localSpectrogram } = await import('./local-spectrogram.mjs?v=reference-spectrogram-1');
             const player = document.createElement('div');
             player.className = 'audio-clip';
             player.id = 'generated-preview-test';

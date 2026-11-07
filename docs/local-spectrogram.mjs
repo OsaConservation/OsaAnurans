@@ -48,8 +48,14 @@ async function decodeRecording(clip, onStatus) {
 }
 
 export function generateSpectrogram(clip, onStatus = () => {}, canGenerate = async () => true) {
-    const key = `${recordingKey(clip)}:${clip.offsets.join(":")}`;
-    if (images.has(key)) return images.get(key);
+    const key = `${recordingKey(clip)}:${clip.offsets?.join(":") ?? "full"}`;
+    if (images.has(key)) {
+        return images.get(key).catch(async (error) => {
+            // Reopening a clip can share a task queued by a card that disappeared.
+            if (error.name !== "AbortError" || !(await canGenerate())) throw error;
+            return generateSpectrogram(clip, onStatus, canGenerate);
+        });
+    }
 
     // Serialize generation to bound simultaneous full-recording downloads.
     const task = queue.then(async () => {
@@ -58,7 +64,7 @@ export function generateSpectrogram(clip, onStatus = () => {}, canGenerate = asy
 
         const buffer = await decodeRecording(clip, onStatus);
         onStatus("Generating spectrogram...");
-        return drawSpectrogram(buffer, clip.offsets);
+        return drawSpectrogram(buffer, clip.offsets ?? [0, buffer.duration]);
     });
     queue = task.catch(() => {});
     images.set(key, task);
@@ -69,7 +75,11 @@ export function generateSpectrogram(clip, onStatus = () => {}, canGenerate = asy
     return task;
 }
 
-export function localSpectrogram(clip, ensureFresh) {
+export function localSpectrogram(clip, ensureFresh = async () => true, {
+    alt = "Locally generated candidate spectrogram",
+    eager = false,
+    onState = () => {},
+} = {}) {
     const wrapper = document.createElement("div");
     wrapper.className = "media-image";
     const status = document.createElement("p");
@@ -82,6 +92,7 @@ export function localSpectrogram(clip, ensureFresh) {
         if (!wrapper.isConnected) return;
         try {
             if (!(await ensureFresh())) return;
+            onState("loading");
             const url = await generateSpectrogram(
                 clip,
                 (message) => { status.textContent = message; },
@@ -89,12 +100,16 @@ export function localSpectrogram(clip, ensureFresh) {
             );
             if (!wrapper.isConnected) return;
             const image = document.createElement("img");
-            image.alt = "Locally generated candidate spectrogram";
+            image.alt = alt;
             image.className = "generated-spectrogram";
             image.src = url;
+            await image.decode();
+            if (!wrapper.isConnected) return;
             wrapper.replaceChildren(image);
+            onState("ready");
         } catch {
             if (!wrapper.isConnected) return;
+            onState("error");
             status.textContent = "Could not generate spectrogram. Audio playback is still available.";
             const retry = document.createElement("button");
             retry.type = "button";
@@ -107,6 +122,8 @@ export function localSpectrogram(clip, ensureFresh) {
         }
     }
 
-    whenVisible(wrapper, generate);
+    // Reference cards are attached synchronously; start targets even when collapsed.
+    if (eager) queueMicrotask(generate);
+    else whenVisible(wrapper, generate);
     return wrapper;
 }

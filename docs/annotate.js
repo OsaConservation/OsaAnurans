@@ -2,9 +2,9 @@ import { createSubmission } from "./annotation-submission.mjs";
 import { createAnnotationSummary } from "./annotation-summary.mjs";
 import { installSpectrogramPreview } from "./spectrogram-preview.mjs";
 ﻿import { element } from "./annotation-dom.mjs";
-import { renderReferences, sound } from "./reference-media.mjs";
-import { candidatePlayer } from "./candidate-player.mjs";
-import { CandidateCursorError, createProvider } from "./annotation-data.mjs?v=species-counts-1";
+import { renderReferences, sound } from "./reference-media.mjs?v=reference-spectrogram-1";
+import { candidatePlayer } from "./candidate-player.mjs?v=reference-spectrogram-1";
+import { CandidateCursorError, createProvider } from "./annotation-data.mjs?v=reference-spectrogram-1";
 
 // Page controls. All reads and saves go through the configured data provider.
 

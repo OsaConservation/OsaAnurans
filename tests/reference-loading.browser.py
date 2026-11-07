@@ -45,7 +45,7 @@ try:
         page.route('**/test-reference.png', lambda route: pending.update(image=route))
         page.route('**/test-reference.wav', lambda route: pending.update(audio=route))
         page.goto(base + '/docs/annotate.html')
-        page.evaluate("() => import('./annotate.js?v=species-counts-1')")
+        page.evaluate("() => import(document.querySelector('script[type=module]').src)")
         page.locator('#annotator-password').fill('local-test-password')
         page.locator('#login-button').click()
         notice = page.locator('#target-reference-loading')

@@ -18,7 +18,7 @@ try:
         page.on('pageerror', lambda error: errors.append(str(error)))
         page.goto(f'http://127.0.0.1:{server.server_port}/docs/annotate.html')
         page.evaluate('''async () => {
-            await import('./annotate.js?v=species-counts-1');
+            await import(document.querySelector('script[type=module]').src);
             const {renderReferences} = await import('./reference-media.mjs');
             document.querySelector('#annotator-login').hidden = true;
             document.querySelector('#annotator-workspace').hidden = false;
@@ -53,7 +53,7 @@ try:
             page.set_viewport_size({'width': width, 'height': 900})
             check_alignment()
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
-        expect(page.locator('.reference-spectrogram-placeholder')).to_have_text('No spectrogram available')
+        expect(page.locator('.reference-spectrogram-slot')).to_have_count(3)
         page.locator('.frog-carousel .frog-card').nth(1).get_by_role('button', name='Next reference').click()
         check_alignment()
         page.locator('.frog-carousel .frog-card').nth(1).locator('img').dispatch_event('error')

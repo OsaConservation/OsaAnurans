@@ -1,5 +1,5 @@
 import { waitForMetadata, windowPosition } from "./audio-window.mjs";
-import { localSpectrogram } from "./local-spectrogram.mjs";
+import { localSpectrogram } from "./local-spectrogram.mjs?v=reference-spectrogram-1";
 
 export function candidatePlayer(clip, { ensureFresh, onFailure }) {
     const wrapper = document.createElement("div");

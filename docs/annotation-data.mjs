@@ -307,7 +307,7 @@ function parseReferenceClip(clip) {
         !clip ||
         typeof clip.reference_id !== "string" ||
         typeof clip.audio_url !== "string" ||
-        !(clip.spectrogram_url === null || typeof clip.spectrogram_url === "string")
+        !(clip.spectrogram_url == null || typeof clip.spectrogram_url === "string")
     ) {
         throw new Error("Invalid reference response.");
     }
@@ -315,7 +315,7 @@ function parseReferenceClip(clip) {
     return {
         id: clip.reference_id,
         audioUrl: clip.audio_url,
-        spectrogramUrl: clip.spectrogram_url,
+        spectrogramUrl: clip.spectrogram_url || null,
     };
 }
 

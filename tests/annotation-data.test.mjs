@@ -177,6 +177,31 @@ test("reference and candidate audio share clips and media fields", async () => {
     }
 });
 
+for (const spectrogram of [undefined, null]) {
+    test(`audio-only references accept ${spectrogram === null ? "null" : "omitted"} spectrogram URLs`, async () => {
+        const originalFetch = globalThis.fetch;
+        globalThis.fetch = async (url) => ({
+            ok: true,
+            json: async () => url.includes("/species?") ? {
+                species: [{ species_id: "SCIBOU", scientific_name: "Scinax boulengeri", common_name: "Frog" }],
+            } : {
+                references: { SCIBOU: [{ reference_id: "reference", audio_url: "https://example.com/frog.wav",
+                    ...(spectrogram === undefined ? {} : { spectrogram_url: spectrogram }),
+                }] },
+                urls_expire_at: "2099-01-01T00:00:00Z",
+            },
+        });
+        try {
+            const references = await new ServerProvider("https://example.com").getReferenceSounds("SCIBOU");
+            assert.deepEqual(references.target.clips, [{
+                id: "reference", audioUrl: "https://example.com/frog.wav", spectrogramUrl: null,
+            }]);
+        } finally {
+            globalThis.fetch = originalFetch;
+        }
+    });
+}
+
 test("server caches catalog and references, refreshes expired URLs, and retries failures", async () => {
     const originalFetch = globalThis.fetch;
     const originalNow = Date.now;
