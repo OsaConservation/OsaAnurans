@@ -1,6 +1,6 @@
 import { element } from "./annotation-dom.mjs";
 
-export function sortSummary(rows, key = "total", descending = false) {
+export function sortSummary(rows, key = "total", descending = key === "total") {
     return [...rows].sort((a, b) => {
         const comparison = key === "scientificName"
             ? a.scientificName.localeCompare(b.scientificName)
@@ -14,7 +14,7 @@ export function createAnnotationSummary({ provider, available, select, locked })
     const status = document.querySelector("#summary-status");
     const refreshButton = document.querySelector("#refresh-summary");
     const table = document.querySelector("#species-summary");
-    let rows = [], key = "total", descending = false, refreshing = false, refreshAgain = false;
+    let rows = [], key = "total", descending = true, refreshing = false, refreshAgain = false;
     section.hidden = false;
 
     function render() {
@@ -53,7 +53,7 @@ export function createAnnotationSummary({ provider, available, select, locked })
         try {
             rows = await provider.getAnnotationSummary();
             render();
-            status.textContent = `Counts updated ${new Date().toLocaleTimeString()}. Fewest annotations appear first by default.`;
+            status.textContent = `Counts updated ${new Date().toLocaleTimeString()}. Most annotations appear first by default; ties are alphabetical.`;
         } catch {
             status.textContent = rows.length
                 ? "Could not refresh counts. Previous counts are still shown; use Refresh counts to retry."

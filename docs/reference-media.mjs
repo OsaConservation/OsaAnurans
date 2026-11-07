@@ -2,16 +2,18 @@ import { element } from "./annotation-dom.mjs";
 
 const $ = (selector) => document.querySelector(selector);
 
-function image(url, alt, loading = "lazy") {
+function image(url, alt, loading = "lazy", onState = null) {
     const wrapper = element("div", null, "media-image");
     const indicator = loadingIndicator("Loading image...");
+    indicator.hidden = Boolean(onState);
     const img = element("img");
     img.alt = alt;
     img.loading = loading;
 
-    img.addEventListener("load", () => indicator.remove());
+    img.addEventListener("load", () => { indicator.remove(); onState?.("ready"); });
     img.addEventListener("error", () => {
         indicator.remove();
+        onState?.("error");
         img.replaceWith(element("p", `${alt} unavailable.`, "media-error"));
     });
 
@@ -37,13 +39,42 @@ mobileLayout.addEventListener("change", () => {
 });
 export function sound(clip, label, isTarget = false) {
     const wrapper = element("div", null, "audio-clip");
+    const state = { audio: "loading", spectrogram: clip.spectrogramUrl ? "loading" : "none" };
+    const feedback = element("div", null, "target-media-status");
+    const feedbackTitle = element("strong");
+    const feedbackDetail = element("span");
+    if (isTarget) {
+        feedback.setAttribute("role", "status");
+        feedback.setAttribute("aria-live", "polite");
+        feedback.append(feedbackTitle, feedbackDetail);
+        wrapper.append(feedback);
+    }
+    function updateTargetState(part, value) {
+        state[part] = value;
+        if (!isTarget) return;
+        const pending = Object.values(state).includes("loading");
+        const failed = Object.values(state).includes("error");
+        feedback.hidden = !pending && !failed;
+        feedback.classList.toggle("is-loading", pending);
+        feedback.classList.toggle("is-error", failed);
+        feedbackTitle.textContent = pending ? "Loading target reference…"
+            : failed ? "Target reference needs attention" : "Target reference ready";
+        feedbackDetail.textContent = [
+            state.audio === "ready" ? "Audio ready to play" : state.audio === "error" ? "Audio unavailable" : "Audio loading…",
+            state.spectrogram === "none" ? "No spectrogram available"
+                : state.spectrogram === "ready" ? "Spectrogram ready"
+                : state.spectrogram === "error" ? "Spectrogram unavailable" : "Spectrogram loading…",
+        ].join(" · ");
+        wrapper.setAttribute("aria-busy", String(pending));
+    }
+    updateTargetState("audio", "loading");
     if (clip.spectrogramUrl) {
         if (isTarget) {
             const details = element("details", null, "reference-spectrogram");
             details.open = !mobileLayout.matches;
             details.append(
                 element("summary", "Target spectrogram"),
-                image(clip.spectrogramUrl, `Spectrogram: ${label}`, "eager"),
+                image(clip.spectrogramUrl, `Spectrogram: ${label}`, "eager", (value) => updateTargetState("spectrogram", value)),
             );
             wrapper.append(details);
         } else
@@ -53,10 +84,16 @@ export function sound(clip, label, isTarget = false) {
     }
     const audio = element("audio");
     const indicator = loadingIndicator("Loading audio...");
-    indicator.hidden = !isTarget;
+    indicator.hidden = true;
 
-    const showLoading = () => { indicator.hidden = false; };
-    const hideLoading = () => { indicator.hidden = true; };
+    const showLoading = () => {
+        if (isTarget) updateTargetState("audio", "loading");
+        else indicator.hidden = false;
+    };
+    const hideLoading = () => {
+        if (isTarget) updateTargetState("audio", "ready");
+        indicator.hidden = true;
+    };
     audio.addEventListener("loadstart", () => {
         if (audio.preload !== "none") showLoading();
     });
@@ -64,7 +101,7 @@ export function sound(clip, label, isTarget = false) {
     audio.addEventListener("seeking", showLoading);
     audio.addEventListener("canplay", hideLoading);
     audio.addEventListener("playing", hideLoading);
-    audio.addEventListener("seeked", hideLoading);
+    audio.addEventListener("seeked", () => { if (audio.readyState >= 3) hideLoading(); });
     audio.addEventListener("suspend", () => {
         if (audio.readyState >= 3 || audio.preload === "none") hideLoading();
     });
@@ -72,7 +109,8 @@ export function sound(clip, label, isTarget = false) {
     audio.preload = isTarget ? "auto" : "none";
     audio.setAttribute("aria-label", label);
     audio.addEventListener("error", () => {
-        hideLoading();
+        indicator.hidden = true;
+        updateTargetState("audio", "error");
         if (!wrapper.querySelector(".audio-error"))
             wrapper.append(
                 element(

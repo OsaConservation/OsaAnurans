@@ -31,7 +31,16 @@
                     <h2 id="login-heading">Annotator access</h2>
                     <form id="login-form">
                         <label for="annotator-password">Shared annotator password</label>
-                        <input id="annotator-password" type="password" autocomplete="current-password" required>
+                        <div class="password-field">
+                            <input id="annotator-password" type="password" autocomplete="current-password" required>
+                            <button id="toggle-password" type="button" aria-label="Show password" aria-controls="annotator-password" title="Show password">
+                                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true" focusable="false">
+                                    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                                    <circle cx="12" cy="12" r="3" />
+                                    <path id="password-eye-slash" d="m3 3 18 18" hidden />
+                                </svg>
+                            </button>
+                        </div>
                         <button id="login-button" type="submit">Sign in</button>
                         <p id="login-error" role="alert"></p>
                     </form>
@@ -44,8 +53,8 @@
                     </div>
                     <button id="logout-button" type="button">Log out</button>
                 </div>
-                <section id="annotation-summary" aria-labelledby="summary-heading" hidden>
-                    <h2 id="summary-heading">Annotations by species</h2>
+                <details id="annotation-summary" aria-labelledby="summary-heading" hidden>
+                    <summary><h2 id="summary-heading">Annotations by species</h2></summary>
                     <p>Choose a species with fewer annotations to help fill the gaps. Counts include seed annotations and individual votes; repeated reviews count separately.</p>
                     <button id="refresh-summary" type="button">Refresh counts</button>
                     <p id="summary-status" role="status" aria-live="polite"></p>
@@ -57,12 +66,12 @@
                                 <th scope="col"><button type="button" data-sort="positive">Positive</button></th>
                                 <th scope="col"><button type="button" data-sort="negative">Negative</button></th>
                                 <th scope="col"><button type="button" data-sort="unsure">Unsure</button></th>
-                                <th scope="col" aria-sort="ascending"><button type="button" data-sort="total">Total</button></th>
+                                <th scope="col" aria-sort="descending"><button type="button" data-sort="total">Total</button></th>
                             </tr></thead>
                             <tbody></tbody>
                         </table>
                     </div>
-                </section>
+                </details>
                 <label for="scientific">Target species</label>
                 <select id="scientific" disabled>
                     <option>Loading species…</option>
@@ -78,6 +87,7 @@
                             aria-labelledby="target-heading"
                         >
                             <h2 id="target-heading">1. Target reference</h2>
+                            <p id="target-reference-loading" class="target-request-status" role="status" hidden></p>
                             <div id="frog-card"></div>
                         </section>
                         <details class="other-references">

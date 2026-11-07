@@ -1,5 +1,6 @@
 import { createSubmission } from "./annotation-submission.mjs";
 import { createAnnotationSummary } from "./annotation-summary.mjs";
+import { installSpectrogramPreview } from "./spectrogram-preview.mjs";
 ﻿import { element } from "./annotation-dom.mjs";
 import { renderReferences, sound } from "./reference-media.mjs";
 import { candidatePlayer } from "./candidate-player.mjs";
@@ -54,6 +55,7 @@ let sessionSubmittedCount = 0;
 const submittedAnswers = new Map();
 const annotatorName = $("#annotator-name");
 const workspace = $("#annotator-workspace");
+const spectrogramPreview = installSpectrogramPreview(workspace);
 const loginPanel = $("#annotator-login");
 let annotatorId;
 let resumeRead;
@@ -81,6 +83,7 @@ if (cloudMode) {
 }
 
 function lockPage() {
+    spectrogramPreview.close();
     requestVersion++;
     candidateRequest?.abort();
     loading = false;
@@ -187,6 +190,14 @@ function answerChoices(clip, index) {
 
 // Only the latest selection may replace the visible batch.
 
+function showReferenceLoading(label) {
+    const notice = $("#target-reference-loading");
+    notice.hidden = !label;
+    notice.textContent = label || "";
+    $("#frog-card").hidden = Boolean(label);
+    $(".target-reference").setAttribute("aria-busy", String(Boolean(label)));
+}
+
 async function loadSpecies(id, count = Number(batchSize.value), cursor) {
     if (!canReview() || saving) return;
     const version = ++requestVersion;
@@ -196,6 +207,7 @@ async function loadSpecies(id, count = Number(batchSize.value), cursor) {
     retry.hidden = true;
     retry.textContent = "Retry";
     status.textContent = "Loading references and clips...";
+    showReferenceLoading(`Loading target reference for ${speciesById.get(id)?.scientificName || id}…`);
     document.querySelectorAll("audio").forEach((audio) => audio.pause());
     speciesId = id;
     retryAction = () => loadSpecies(id, count, cursor);
@@ -240,6 +252,7 @@ async function loadSpecies(id, count = Number(batchSize.value), cursor) {
         retry.hidden = false;
     } finally {
         if (version === requestVersion) {
+            showReferenceLoading(null);
             loading = false;
             updateProgress();
         }
@@ -367,6 +380,7 @@ async function refreshReferenceMedia() {
     if (!canReview()) return;
     if (referenceRefresh) return referenceRefresh;
     const selectedSpecies = speciesId;
+    showReferenceLoading("Refreshing target reference media…");
 
     referenceRefresh = provider.getReferenceSounds(selectedSpecies).then((references) => {
         if (speciesId !== selectedSpecies) return;
@@ -377,7 +391,10 @@ async function refreshReferenceMedia() {
         status.textContent = `Could not refresh reference media: ${error.message}`;
         retryAction = refreshReferenceMedia;
         retry.hidden = false;
-    }).finally(() => { referenceRefresh = null; });
+    }).finally(() => {
+        if (speciesId === selectedSpecies) showReferenceLoading(null);
+        referenceRefresh = null;
+    });
     return referenceRefresh;
 }
 
@@ -491,6 +508,16 @@ $("#edit-pending").addEventListener("click", () => {
     updateProgress();
 });
 $("#logout-button").addEventListener("click", () => provider.api.logout());
+function setPasswordVisible(visible) {
+    $("#annotator-password").type = visible ? "text" : "password";
+    const label = visible ? "Hide password" : "Show password";
+    $("#toggle-password").setAttribute("aria-label", label);
+    $("#toggle-password").title = label;
+    $("#password-eye-slash").toggleAttribute("hidden", !visible);
+}
+$("#toggle-password").addEventListener("click", () => {
+    setPasswordVisible($("#annotator-password").type === "password");
+});
 $("#login-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const button = $("#login-button");
@@ -511,6 +538,7 @@ $("#login-form").addEventListener("submit", async (event) => {
         $("#login-error").textContent = error.message;
     } finally {
         password.value = "";
+        setPasswordVisible(false);
         button.disabled = false;
     }
 });
