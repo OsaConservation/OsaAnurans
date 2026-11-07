@@ -73,6 +73,22 @@ export class ServerProvider {
         return data.species.map(parseSpecies);
     }
 
+    async getAnnotationSummary() {
+        // Counts must be fresh, independent of reference/catalog caches.
+        const data = await this.getJson("/species");
+        if (!Array.isArray(data?.species)) throw new Error("Invalid species response.");
+        return data.species.map((item) => {
+            const species = parseSpecies(item);
+            const counts = item.annotation_counts;
+            if (!counts || ["positive", "negative", "unsure", "total"].some(
+                (key) => !Number.isSafeInteger(counts[key]) || counts[key] < 0,
+            ) || counts.total !== counts.positive + counts.negative + counts.unsure) {
+                throw new Error("Invalid annotation counts.");
+            }
+            return { ...species, counts };
+        });
+    }
+
     async listReferenceSpecies() {
         if (this.species) return this.species;
         if (this.speciesPromise) return this.speciesPromise;

@@ -475,3 +475,17 @@
     #logout-button { margin-left: auto; }
 }
 #login-error { color: #9a2424; }
+/* Keep the species totals readable on phones without widening the page. */
+#annotation-summary { margin: 1.5rem 0; }
+.summary-scroll { overflow-x: auto; max-height: 24rem; }
+#species-summary { width: 100%; border-collapse: collapse; }
+#species-summary caption { text-align: left; padding: .5rem 0; }
+#species-summary th, #species-summary td { padding: .55rem .75rem; border-bottom: 1px solid #ccd8cf; }
+#species-summary thead th { position: sticky; top: 0; background: #f1f6f0; z-index: 1; }
+#species-summary td { text-align: right; font-variant-numeric: tabular-nums; }
+#species-summary th:first-child { text-align: left; }
+#species-summary small { display: block; font-weight: normal; }
+#species-summary button { font: inherit; }
+#species-summary .summary-species { text-align: left; }
+#species-summary th[aria-sort="ascending"] button::after { content: " ↑"; }
+#species-summary th[aria-sort="descending"] button::after { content: " ↓"; }

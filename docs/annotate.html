@@ -44,6 +44,25 @@
                     </div>
                     <button id="logout-button" type="button">Log out</button>
                 </div>
+                <section id="annotation-summary" aria-labelledby="summary-heading" hidden>
+                    <h2 id="summary-heading">Annotations by species</h2>
+                    <p>Choose a species with fewer annotations to help fill the gaps. Counts include seed annotations and individual votes; repeated reviews count separately.</p>
+                    <button id="refresh-summary" type="button">Refresh counts</button>
+                    <p id="summary-status" role="status" aria-live="polite"></p>
+                    <div class="summary-scroll">
+                        <table id="species-summary">
+                            <caption>Saved annotations. Select a column heading to sort.</caption>
+                            <thead><tr>
+                                <th scope="col"><button type="button" data-sort="scientificName">Species</button></th>
+                                <th scope="col"><button type="button" data-sort="positive">Positive</button></th>
+                                <th scope="col"><button type="button" data-sort="negative">Negative</button></th>
+                                <th scope="col"><button type="button" data-sort="unsure">Unsure</button></th>
+                                <th scope="col" aria-sort="ascending"><button type="button" data-sort="total">Total</button></th>
+                            </tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </section>
                 <label for="scientific">Target species</label>
                 <select id="scientific" disabled>
                     <option>Loading species…</option>

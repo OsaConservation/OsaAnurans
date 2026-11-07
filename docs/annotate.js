@@ -1,4 +1,5 @@
 import { createSubmission } from "./annotation-submission.mjs";
+import { createAnnotationSummary } from "./annotation-summary.mjs";
 ﻿import { element } from "./annotation-dom.mjs";
 import { renderReferences, sound } from "./reference-media.mjs";
 import { candidatePlayer } from "./candidate-player.mjs";
@@ -56,6 +57,7 @@ const workspace = $("#annotator-workspace");
 const loginPanel = $("#annotator-login");
 let annotatorId;
 let resumeRead;
+let annotationSummary;
 
 // Each page load starts a fresh session. Remove drafts from older versions too.
 function clearStoredAnnotationState() {
@@ -120,6 +122,7 @@ function updateProgress() {
         $("#progress").textContent = `${sessionSubmittedCount} answers submitted in this session`;
     }
     dropdown.disabled = loading || saving || Boolean(pendingSubmission) || !dropdown.options.length;
+    annotationSummary?.updateLocks();
     document.querySelectorAll(".answer-options input").forEach((input) => {
         input.disabled = loading || saving || Boolean(pendingSubmission);
     });
@@ -428,6 +431,18 @@ async function initialize() {
             }),
         );
         if (speciesId && speciesById.has(speciesId)) dropdown.value = speciesId;
+        if (cloudMode) {
+            annotationSummary ||= createAnnotationSummary({
+                provider,
+                available: (id) => speciesById.has(id),
+                locked: () => loading || saving || Boolean(pendingSubmission) || !provider.api.authenticated,
+                select: (id) => {
+                    dropdown.value = id;
+                    dropdown.dispatchEvent(new Event("change"));
+                },
+            });
+            void annotationSummary.refresh();
+        }
         await loadSpecies(dropdown.value);
     } catch (error) {
         dropdown.replaceChildren();
@@ -455,6 +470,7 @@ async function submitAnswers() {
         const labels = { present: "yes", absent: "no", unsure: "unsure" };
         for (const item of pendingSubmission.annotations) submittedAnswers.set(item.candidate_id, labels[item.response]);
         pendingSubmission = null;
+        void annotationSummary?.refresh();
         status.textContent = batch?.nextCursor
             ? "Answers submitted successfully. Select Next batch to continue."
             : "Answers submitted successfully. No more candidates for this species. Select another species to continue.";
@@ -488,6 +504,7 @@ $("#login-form").addEventListener("submit", async (event) => {
         $("#login-error").textContent = "";
         if (batch) {
             updateProgress();
+            void annotationSummary?.refresh();
             if (!pendingSubmission && resumeRead) await resumeRead();
         } else await initialize();
     } catch (error) {
