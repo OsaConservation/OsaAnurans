@@ -1,6 +1,6 @@
 ﻿import test from "node:test";
 import assert from "node:assert/strict";
-import { ReviewerSession, SessionExpiredError } from "../docs/reviewer-session.mjs";
+import { AnnotatorSession, SessionExpiredError } from "../docs/annotator-session.mjs";
 import { createSubmission, SubmissionDraft } from "../docs/annotation-submission.mjs";
 
 test("auth gates requests, preserves password whitespace, and limits token destinations", async () => {
@@ -13,7 +13,7 @@ test("auth gates requests, preserves password whitespace, and limits token desti
         return { ok: !unauthorized, status: unauthorized ? 401 : 200 };
     };
     try {
-        const auth = new ReviewerSession("https://example.com");
+        const auth = new AnnotatorSession("https://example.com");
         await assert.rejects(auth.request("/species"), SessionExpiredError);
         assert.equal(calls.length, 0);
         await auth.login(" password ");
@@ -32,7 +32,7 @@ test("auth gates requests, preserves password whitespace, and limits token desti
 
 test("submission payload maps labels and preserves pending payload across reload", () => {
     const clips = [{ id: "candidate", windowId: "window", querySpeciesId: "FROG", audioUrl: "secret-url" }];
-    const payload = createSubmission(clips, new Map([["candidate", "yes"]]), "reviewer", " Maria ", "submission");
+    const payload = createSubmission(clips, new Map([["candidate", "yes"]]), "annotator", " Maria ", "submission");
     assert.deepEqual(payload.annotations, [{ candidate_id: "candidate", window_id: "window", query_species_id: "FROG", response: "present" }]);
     assert.equal(payload.annotator_name, "Maria");
     assert.ok(!JSON.stringify(payload).includes("secret-url"));
@@ -40,7 +40,7 @@ test("submission payload maps labels and preserves pending payload across reload
     const storage = { getItem: () => stored, setItem: (_key, value) => { stored = value; } };
     new SubmissionDraft(storage, "draft").write({ pending: payload });
     assert.deepEqual(new SubmissionDraft(storage, "draft").read().pending, payload);
-    assert.throws(() => createSubmission(clips, new Map(), "reviewer", "Maria", "id"), /Answer between/);
+    assert.throws(() => createSubmission(clips, new Map(), "annotator", "Maria", "id"), /Answer between/);
 });
 
 test("login errors are distinct and never retried automatically", async () => {
@@ -49,7 +49,7 @@ test("login errors are distinct and never retried automatically", async () => {
     let calls = 0;
     globalThis.fetch = async () => { calls++; return { ok: false, status }; };
     try {
-        const auth = new ReviewerSession("https://example.com");
+        const auth = new AnnotatorSession("https://example.com");
         await assert.rejects(auth.login("wrong"), /Incorrect password/);
         assert.equal(calls, 1);
         status = 503;

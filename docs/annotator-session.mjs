@@ -1,6 +1,6 @@
 ﻿export class SessionExpiredError extends Error {}
 
-export class ReviewerSession extends EventTarget {
+export class AnnotatorSession extends EventTarget {
     constructor(baseUrl) {
         super();
         this.baseUrl = baseUrl.replace(/\/$/, "");
@@ -51,6 +51,6 @@ export class ReviewerSession extends EventTarget {
 
     expired() {
         this.logout();
-        throw new SessionExpiredError("Reviewer session expired. Enter the password again.");
+        throw new SessionExpiredError("Annotator session expired. Enter the password again.");
     }
 }

@@ -1,4 +1,11 @@
-import { ReviewerSession } from "./reviewer-session.mjs";
+import { AnnotatorSession } from "./annotator-session.mjs";
+
+export class CandidateCursorError extends Error {
+    constructor() {
+        super("This review cursor is no longer valid. Restart from the first batch.");
+        this.name = "CandidateCursorError";
+    }
+}
 
 /**
  * Data boundary for the annotation page. Both providers expose the same async
@@ -6,7 +13,7 @@ import { ReviewerSession } from "./reviewer-session.mjs";
  * Response shapes and backend requirements are documented in ANNOTATION_API.md.
  */
 export class ServerProvider {
-    constructor(baseUrl, storage = getSessionStorage(), api = new ReviewerSession(baseUrl)) {
+    constructor(baseUrl, storage = getSessionStorage(), api = new AnnotatorSession(baseUrl)) {
         this.baseUrl = baseUrl.replace(/\/$/, "");
         this.storage = storage;
         this.api = api;
@@ -50,11 +57,28 @@ export class ServerProvider {
     }
 
     async listSpecies() {
+        if (!this.candidateSpeciesPromise) {
+            // Queue availability can change between visits; do not persist this list.
+            this.candidateSpeciesPromise = this.loadSpecies().catch((error) => {
+                this.candidateSpeciesPromise = null;
+                throw error;
+            });
+        }
+        return this.candidateSpeciesPromise;
+    }
+
+    async loadSpecies() {
+        const data = await this.getJson("/species?has_audio=true&has_candidates=true");
+        if (!Array.isArray(data?.species)) throw new Error("Invalid species response.");
+        return data.species.map(parseSpecies);
+    }
+
+    async listReferenceSpecies() {
         if (this.species) return this.species;
         if (this.speciesPromise) return this.speciesPromise;
 
         // Share concurrent requests; allow retries after failure.
-        this.speciesPromise = this.loadSpecies().catch((error) => {
+        this.speciesPromise = this.loadReferenceSpecies().catch((error) => {
             this.speciesPromise = null;
             throw error;
         });
@@ -62,7 +86,7 @@ export class ServerProvider {
         return this.speciesPromise;
     }
 
-    async loadSpecies() {
+    async loadReferenceSpecies() {
         const data = await this.getJson("/species?has_audio=true");
         if (!Array.isArray(data?.species)) {
             throw new Error("Invalid species response.");
@@ -75,7 +99,7 @@ export class ServerProvider {
     }
 
     async getReferenceSounds(speciesId) {
-        const species = await this.listSpecies();
+        const species = await this.listReferenceSpecies();
         const target = species.find((item) => item.id === speciesId);
         if (!target) throw new Error("Unknown target species.");
 
@@ -140,22 +164,35 @@ export class ServerProvider {
             credentials: "omit",
         });
         if (!response.ok) {
-            throw new Error(`Catalog request failed (${response.status}).`);
+            const error = new Error(`Catalog request failed (${response.status}).`);
+            error.status = response.status;
+            throw error;
         }
 
         return response.json();
     }
 
-    async getCandidates(speciesId, { count = 15, cursor, signal } = {}) {
+    async getCandidates(speciesId, { count = 15, cursor, signal, restartIfEmpty = false } = {}) {
         const query = new URLSearchParams({ species_id: speciesId, count: String(count) });
         if (cursor != null) query.set("cursor", cursor);
 
-        const data = await this.getJson(`/candidates?${query}`, signal);
+        let data;
+        try {
+            data = await this.getJson(`/candidates?${query}`, signal);
+        } catch (error) {
+            if (cursor != null && error.status === 400) throw new CandidateCursorError();
+            throw error;
+        }
         if (
             !Array.isArray(data?.candidates) ||
             !(data.next_cursor === null || typeof data.next_cursor === "string") ||
             !Number.isFinite(Date.parse(data.urls_expire_at))
         ) throw new Error("Invalid candidate response.");
+
+        // A saved cursor can outlive the candidate queue it came from.
+        if (restartIfEmpty && cursor != null && !data.candidates.length) {
+            return this.getCandidates(speciesId, { count, signal });
+        }
 
         const clips = data.candidates.map((item) => parseCandidate(item, speciesId));
         if (new Set(clips.map((clip) => clip.id)).size !== clips.length) {
@@ -195,12 +232,13 @@ export class ServerProvider {
 function parseCandidate(item, speciesId) {
     if (
         !item || typeof item.candidate_id !== "string" || !item.candidate_id ||
-        typeof item.window_id !== "string" || typeof item.recording_id !== "string" ||
-        item.query_species_id !== speciesId || typeof item.audio_url !== "string" ||
-        !Number.isFinite(item.start_seconds) || !Number.isFinite(item.end_seconds) ||
-        item.start_seconds < 0 || item.end_seconds <= item.start_seconds ||
+        typeof item.window_id !== "string" || !item.window_id ||
+        typeof item.recording_id !== "string" || !item.recording_id ||
+        item.query_species_id !== speciesId || typeof item.audio_url !== "string" || !item.audio_url ||
         !(item.spectrogram_url == null || typeof item.spectrogram_url === "string")
     ) throw new Error("Invalid candidate response.");
+
+    validateCandidateBounds(item);
 
     return {
         id: item.candidate_id,
@@ -209,10 +247,25 @@ function parseCandidate(item, speciesId) {
         recordingId: item.recording_id,
         createdAt: item.created_at,
         score: item.score,
-        offsets: [item.start_seconds, item.end_seconds],
+        offsets: [0, 5],
+        // Source-recording bounds are metadata, never playback/spectrogram bounds.
+        recordingOffsets: [item.recording_start_seconds, item.recording_end_seconds],
         audioUrl: item.audio_url,
         spectrogramUrl: item.spectrogram_url || null,
     };
+}
+
+function validateCandidateBounds(item) {
+    if (item.start_seconds !== 0 || item.end_seconds !== 5) {
+        throw new Error("Invalid candidate response: expected standalone 5-second window audio.");
+    }
+
+    const start = item.recording_start_seconds;
+    const end = item.recording_end_seconds;
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 ||
+        Math.abs(end - start - 5) > 0.000001) {
+        throw new Error("Invalid candidate response: missing or invalid source-recording bounds.");
+    }
 }
 
 function parseSpecies(item) {
@@ -358,7 +411,7 @@ export class DemoProvider {
 
 export function createProvider(config) {
     if (config.provider === "demo") return new DemoProvider();
-    if (config.provider === "server") return new ServerProvider(config.baseUrl);
+    if (config.provider === "server") return new ServerProvider(config.baseUrl, null);
     throw new Error(`Unknown annotation provider: ${config.provider}`);
 }
 

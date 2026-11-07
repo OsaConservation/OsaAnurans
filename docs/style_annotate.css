@@ -416,7 +416,7 @@
 
 [hidden] { display: none !important; }
 #login-form { display: grid; gap: 12px; max-width: 420px; }
-.reviewer-bar {
+.annotator-bar {
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
@@ -428,7 +428,7 @@
     background: #f5f8f3;
 }
 
-.reviewer-name-field {
+.annotator-name-field {
     flex: 1;
     min-width: 0;
     max-width: 420px;
@@ -436,13 +436,13 @@
     gap: 6px;
 }
 
-.reviewer-name-field label {
+.annotator-name-field label {
     margin: 0;
     font-weight: 600;
     font-size: 0.9rem;
 }
 
-#reviewer-name {
+#annotator-name {
     box-sizing: border-box;
     width: 100%;
     min-height: 44px;
@@ -470,8 +470,8 @@
 #logout-button:hover { background: #e8efe4; }
 
 @media (max-width: 480px) {
-    .reviewer-bar { flex-wrap: wrap; gap: 12px; }
-    .reviewer-name-field { flex-basis: 100%; max-width: none; }
+    .annotator-bar { flex-wrap: wrap; gap: 12px; }
+    .annotator-name-field { flex-basis: 100%; max-width: none; }
     #logout-button { margin-left: auto; }
 }
 #login-error { color: #9a2424; }

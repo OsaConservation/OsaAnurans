@@ -27,20 +27,20 @@
                     </p>
                     <p id="mode-note"></p>
                 </header>
-                <section id="reviewer-login" aria-labelledby="login-heading">
-                    <h2 id="login-heading">Reviewer access</h2>
+                <section id="annotator-login" aria-labelledby="login-heading">
+                    <h2 id="login-heading">Annotator access</h2>
                     <form id="login-form">
-                        <label for="reviewer-password">Shared reviewer password</label>
-                        <input id="reviewer-password" type="password" autocomplete="current-password" required>
+                        <label for="annotator-password">Shared annotator password</label>
+                        <input id="annotator-password" type="password" autocomplete="current-password" required>
                         <button id="login-button" type="submit">Sign in</button>
                         <p id="login-error" role="alert"></p>
                     </form>
                 </section>
-                <div id="reviewer-workspace" hidden>
-                <div class="reviewer-bar" id="reviewer-controls">
-                    <div class="reviewer-name-field">
-                        <label for="reviewer-name">Your name</label>
-                        <input id="reviewer-name" type="text" maxlength="100" autocomplete="name" placeholder="Name shown on your annotations">
+                <div id="annotator-workspace" hidden>
+                <div class="annotator-bar" id="annotator-controls">
+                    <div class="annotator-name-field">
+                        <label for="annotator-name">Your name</label>
+                        <input id="annotator-name" type="text" maxlength="100" autocomplete="name" placeholder="Name shown on your annotations">
                     </div>
                     <button id="logout-button" type="button">Log out</button>
                 </div>

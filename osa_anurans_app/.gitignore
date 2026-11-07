@@ -1,0 +1,9 @@
+.venv/
+artifacts*/
+config.local.toml
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+audio-inbox/*
+!audio-inbox/.gitkeep

@@ -1,8 +1,8 @@
-import { createSubmission, SubmissionDraft } from "./annotation-submission.mjs";
+import { createSubmission } from "./annotation-submission.mjs";
 ﻿import { element } from "./annotation-dom.mjs";
 import { renderReferences, sound } from "./reference-media.mjs";
 import { candidatePlayer } from "./candidate-player.mjs";
-import { createProvider } from "./annotation-data.mjs";
+import { CandidateCursorError, createProvider } from "./annotation-data.mjs";
 
 // Page controls. All reads and saves go through the configured data provider.
 
@@ -49,45 +49,33 @@ let batch;
 let loading = false;
 let saving = false;
 let pendingSubmission = null;
+let sessionSubmittedCount = 0;
 const submittedAnswers = new Map();
-const reviewerName = $("#reviewer-name");
-const workspace = $("#reviewer-workspace");
-const loginPanel = $("#reviewer-login");
-let restoredNavigation;
-let draft;
-let reviewerId;
+const annotatorName = $("#annotator-name");
+const workspace = $("#annotator-workspace");
+const loginPanel = $("#annotator-login");
+let annotatorId;
 let resumeRead;
 
-if (cloudMode) {
-    provider = createProvider(window.annotationConfig);
-    try {
-        reviewerId = localStorage.getItem("osa-reviewer-id") || crypto.randomUUID();
-        localStorage.setItem("osa-reviewer-id", reviewerId);
-        draft = new SubmissionDraft(localStorage, `osa-annotation-draft-v1:${window.annotationConfig.baseUrl}`);
-        const restored = draft.read();
-        if (restored) {
-            pendingSubmission = restored.pending || null;
-            reviewerName.value = restored.name || "";
-            restoredNavigation = restored.navigation;
-            for (const [id, value] of restored.answers || []) answers.set(id, value);
-            for (const [id, value] of restored.submitted || []) submittedAnswers.set(id, value);
-        }
-    } catch {
-        reviewerId ||= crypto.randomUUID();
-        draft = null;
+// Each page load starts a fresh session. Remove drafts from older versions too.
+function clearStoredAnnotationState() {
+    for (const storageName of ["localStorage", "sessionStorage"]) {
+        try {
+            const storage = window[storageName];
+            const keys = Object.keys(storage).filter((key) =>
+                key === "osa-reviewer-id" || key.startsWith("osa-annotation-draft") ||
+                key.startsWith("annotation-catalog-"));
+            keys.forEach((key) => storage.removeItem(key));
+        } catch { /* Storage restrictions must not prevent annotation. */ }
     }
-    provider.api.addEventListener("logout", lockPage);
 }
 
-function persistDraft() {
-    if (!cloudMode || !draft) return;
-    draft.write({
-        name: reviewerName.value,
-        answers: [...answers],
-        submitted: [...submittedAnswers],
-        pending: pendingSubmission,
-        navigation: batch && { speciesId: batch.speciesId, count: batch.count, cursor: batch.inputCursor },
-    });
+clearStoredAnnotationState();
+annotatorName.value = "";
+if (cloudMode) {
+    annotatorId = crypto.randomUUID();
+    provider = createProvider(window.annotationConfig);
+    provider.api.addEventListener("logout", lockPage);
 }
 
 function lockPage() {
@@ -97,7 +85,7 @@ function lockPage() {
     workspace.hidden = true;
     loginPanel.hidden = false;
     document.querySelectorAll("audio").forEach((audio) => audio.pause());
-    $("#login-error").textContent = "Enter the reviewer password to continue. Your answers are preserved.";
+    $("#login-error").textContent = "Enter the annotator password to continue. Your answers are preserved.";
 }
 
 function canReview() {
@@ -129,15 +117,14 @@ function updateProgress() {
     nextButton.disabled = loading || saving || !canReview() || Boolean(pendingSubmission) || batchHasChanges() || !batch?.nextCursor;
     batchSize.disabled = loading || saving || Boolean(pendingSubmission);
     if (cloudMode) {
-        const answered = batch?.clips.filter((clip) => answers.has(clip.id)).length || 0;
-        $("#progress").textContent = `${answered} of ${batch?.clips.length || 0} answered in this batch; ${answers.size} drafts in this page`;
+        $("#progress").textContent = `${sessionSubmittedCount} answers submitted in this session`;
     }
     dropdown.disabled = loading || saving || Boolean(pendingSubmission) || !dropdown.options.length;
     document.querySelectorAll(".answer-options input").forEach((input) => {
         input.disabled = loading || saving || Boolean(pendingSubmission);
     });
     saveButton.textContent = saving ? "Submitting..." : pendingSubmission ? "Retry submission" : "Submit answers";
-    reviewerName.disabled = saving || Boolean(pendingSubmission);
+    annotatorName.disabled = saving || Boolean(pendingSubmission);
     $("#edit-pending").hidden = !pendingSubmission;
     $("#edit-pending").disabled = saving;
 }
@@ -186,7 +173,6 @@ function answerChoices(clip, index) {
         input.checked = answers.get(clip.id) === value;
         input.addEventListener("change", () => {
             answers.set(clip.id, value);
-            try { persistDraft(); } catch { status.textContent = "Draft storage unavailable; keep this page open."; }
             status.textContent = "";
             updateProgress();
         });
@@ -205,6 +191,7 @@ async function loadSpecies(id, count = Number(batchSize.value), cursor) {
     candidateRequest = new AbortController();
     loading = true;
     retry.hidden = true;
+    retry.textContent = "Retry";
     status.textContent = "Loading references and clips...";
     document.querySelectorAll("audio").forEach((audio) => audio.pause());
     speciesId = id;
@@ -222,6 +209,7 @@ async function loadSpecies(id, count = Number(batchSize.value), cursor) {
                 count,
                 cursor,
                 signal: candidateRequest.signal,
+                restartIfEmpty: true,
             }),
         ]);
         if (version !== requestVersion) return;
@@ -233,9 +221,12 @@ async function loadSpecies(id, count = Number(batchSize.value), cursor) {
         renderReferences(references);
         renderCandidates();
         showBatchStatus();
-        try { persistDraft(); } catch { /* Continue reviewing with an in-memory draft. */ }
     } catch (error) {
         if (version !== requestVersion) return;
+        if (error instanceof CandidateCursorError) {
+            retryAction = () => loadSpecies(id, count);
+            retry.textContent = "Restart batch";
+        }
         if (cloudMode && batch?.speciesId) {
             speciesId = batch.speciesId;
             dropdown.value = speciesId;
@@ -256,7 +247,7 @@ function showBatchStatus() {
     if (!cloudMode) { status.textContent = ""; return; }
 
     status.textContent = batch.nextCursor === null
-        ? "End of queue. Submit any remaining answers."
+        ? "This is the last batch for this species. Submit any remaining answers."
         : "Submit answered clips before moving to the next batch.";
 }
 
@@ -268,6 +259,7 @@ async function loadCandidateBatch(cursor, { refresh = false } = {}) {
     const version = ++requestVersion;
     loading = true;
     retry.hidden = true;
+    retry.textContent = "Retry";
     status.textContent = refresh ? "Refreshing clip media..." : "Loading next batch...";
     updateProgress();
 
@@ -283,10 +275,13 @@ async function loadCandidateBatch(cursor, { refresh = false } = {}) {
         if (!refresh) mediaRefreshAttempted = false;
         renderCandidates();
         showBatchStatus();
-        try { persistDraft(); } catch { /* Continue reviewing with an in-memory draft. */ }
         return true;
     } catch (error) {
         if (version !== requestVersion) return false;
+        if (error instanceof CandidateCursorError) {
+            retryAction = () => loadSpecies(current.speciesId, current.count);
+            retry.textContent = "Restart batch";
+        }
         status.textContent = `Could not load candidates: ${error.message}. Your answers are preserved.`;
         retry.hidden = false;
         return false;
@@ -417,15 +412,6 @@ async function initialize() {
     updateProgress();
     try {
         provider ||= createProvider(window.annotationConfig);
-        if (cloudMode) {
-            try {
-                if (!localStorage.getItem("osa-reviewer-id")) {
-                    localStorage.setItem("osa-reviewer-id", crypto.randomUUID());
-                }
-            } catch {
-                // Reviewing remains available when storage is disabled.
-            }
-        }
         $("#mode-note").textContent =
             window.annotationConfig.provider === "demo"
                 ? "Demo mode - Sample clips are reused for every species. Answers stay in this page only."
@@ -442,12 +428,7 @@ async function initialize() {
             }),
         );
         if (speciesId && speciesById.has(speciesId)) dropdown.value = speciesId;
-        const navigation = restoredNavigation;
-        restoredNavigation = null;
-        if (navigation && speciesById.has(navigation.speciesId)) {
-            dropdown.value = navigation.speciesId;
-            await loadSpecies(navigation.speciesId, navigation.count, navigation.cursor);
-        } else await loadSpecies(dropdown.value);
+        await loadSpecies(dropdown.value);
     } catch (error) {
         dropdown.replaceChildren();
         status.textContent = `Could not start annotation: ${error.message}`;
@@ -464,23 +445,20 @@ async function submitAnswers() {
     try {
         if (!pendingSubmission) {
             const changed = new Map([...answers].filter(([id, value]) => submittedAnswers.get(id) !== value));
-            pendingSubmission = createSubmission(batch.clips, changed, reviewerId, reviewerName.value);
+            pendingSubmission = createSubmission(batch.clips, changed, annotatorId, annotatorName.value);
         }
-        // Persist the exact payload before sending; retries can append duplicates.
-        if (!draft) throw new Error("Browser storage is required to safely retain a pending submission.");
-        persistDraft();
+        // Keep the exact payload in memory for retries within this page.
         updateProgress();
         status.textContent = "Submitting answers...";
         await provider.saveAnnotations(pendingSubmission);
+        sessionSubmittedCount += pendingSubmission.annotations.length;
         const labels = { present: "yes", absent: "no", unsure: "unsure" };
         for (const item of pendingSubmission.annotations) submittedAnswers.set(item.candidate_id, labels[item.response]);
         pendingSubmission = null;
-        status.textContent = "Answers submitted successfully.";
-        try { persistDraft(); }
-        catch {
-            try { draft.clear(); } catch { /* The server receipt remains authoritative. */ }
-            status.textContent += " Browser draft storage could not be updated; avoid retrying this submitted batch.";
-        }
+        status.textContent = batch?.nextCursor
+            ? "Answers submitted successfully. Select Next batch to continue."
+            : "Answers submitted successfully. No more candidates for this species. Select another species to continue.";
+
     } catch (error) {
         status.textContent = `${error.message} Pending answers are retained. A manual retry after a network error may create duplicates.`;
     } finally {
@@ -494,11 +472,7 @@ $("#edit-pending").addEventListener("click", () => {
     if (saving || !pendingSubmission) return;
     if (!window.confirm("Stop retrying this payload and edit answers? If the previous request succeeded, a new submission may duplicate those answers.")) return;
     pendingSubmission = null;
-    try { persistDraft(); } catch { status.textContent = "Could not update the stored draft."; }
     updateProgress();
-});
-reviewerName.addEventListener("change", () => {
-    try { persistDraft(); } catch { /* Submission reports storage failures before sending. */ }
 });
 $("#logout-button").addEventListener("click", () => provider.api.logout());
 $("#login-form").addEventListener("submit", async (event) => {
@@ -506,7 +480,7 @@ $("#login-form").addEventListener("submit", async (event) => {
     const button = $("#login-button");
     if (button.disabled) return;
     button.disabled = true;
-    const password = $("#reviewer-password");
+    const password = $("#annotator-password");
     try {
         await provider.api.login(password.value);
         loginPanel.hidden = true;
@@ -527,6 +501,6 @@ $("#login-form").addEventListener("submit", async (event) => {
 loginPanel.hidden = !cloudMode;
 workspace.hidden = cloudMode;
 $("#logout-button").hidden = !cloudMode;
-$("#reviewer-controls").hidden = !cloudMode;
-reviewerName.hidden = !cloudMode;
+$("#annotator-controls").hidden = !cloudMode;
+annotatorName.hidden = !cloudMode;
 if (!cloudMode) initialize();
