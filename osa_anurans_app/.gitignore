@@ -7,3 +7,9 @@ __pycache__/
 *.egg-info/
 audio-inbox/*
 !audio-inbox/.gitkeep
+outputs/
+inputs/audio-inbox/*
+!inputs/audio-inbox/.gitkeep
+inputs/references/*
+!inputs/references/.gitkeep
+inputs/species.json

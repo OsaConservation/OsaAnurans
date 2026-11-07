@@ -8,10 +8,10 @@ from dataclasses import replace
 import numpy as np
 import pytest
 import soundfile as sf
-from osa_anurans_app.src.annotations import load_snapshot
+from osa_anurans_app.src.annotations import load_snapshot, save_snapshot
 from osa_anurans_app.src.audio import SAMPLE_RATE, WINDOW_SAMPLES
 from osa_anurans_app.src.catalog import Catalog
-from osa_anurans_app.src.config import AppConfig
+from osa_anurans_app.src.config import AppConfig, load_config
 from osa_anurans_app.src.model.model import load_artifact
 from osa_anurans_app.src.pipeline import import_local, train_local
 
@@ -194,13 +194,11 @@ def test_local_training_reloads_probe_and_covers_every_window_species(local_conf
         json.loads(line) for line in (run_dir / "candidates.jsonl").read_text().splitlines()
     ]
     assert metadata["local_only"] is True
-    assert metadata["count"] == len(candidates) == 30
-    assert len({row["candidate_id"] for row in candidates}) == 30
+    assert metadata["count"] == len(candidates) == 24
+    assert len({row["candidate_id"] for row in candidates}) == len(candidates)
     with Catalog(local_config.artifacts / "catalog.sqlite") as catalog:
         window_ids = {window.window_id for window in catalog.windows()}
-    assert {(row["window_id"], row["query_species_id"]) for row in candidates} == {
-        (window_id, species) for window_id in window_ids for species in ("A", "B")
-    }
+    assert all(row["window_id"] in window_ids for row in candidates)
     assert all(0 <= row["score"] <= 1 for row in candidates)
     assert not (run_dir / "publish.json").exists()
 
@@ -212,7 +210,70 @@ def test_local_training_reloads_probe_and_covers_every_window_species(local_conf
     assert len(train_recordings) == 4
     assert len(test_recordings) == 1
     assert train_recordings.isdisjoint(test_recordings)
+    with Catalog(local_config.artifacts / "catalog.sqlite") as catalog:
+        held_out_windows = {
+            w.window_id for w in catalog.windows() if w.recording_id in test_recordings
+        }
+    assert not held_out_windows.intersection(row["window_id"] for row in candidates)
     assert json.loads((run_dir / "metrics.json").read_text())["test"]["accuracy"] == 1
+
+
+@pytest.mark.parametrize("annotator_id", ["new-species", "eoin-template-seed"])
+def test_training_excludes_reference_pairs_from_snapshot_provenance(local_config, annotator_id):
+    import_local(local_config, backend=TinyBackend())
+    latest = json.loads((local_config.artifacts / "latest.json").read_text())
+    from pathlib import Path
+
+    labels = load_snapshot(Path(latest["snapshot"]))
+    references = {
+        (label.window_id, label.species_id) for label in labels if label.species_id == "A"
+    }
+    answers = [
+        {
+            "window_id": window,
+            "query_species_id": species,
+            "annotator_id": annotator_id,
+            "response": "present",
+        }
+        for window, species in references
+    ]
+    snapshot = save_snapshot(
+        local_config.artifacts / "references", labels, "bigquery", raw_answers=answers
+    )
+    run = train_local(local_config, snapshot=snapshot)
+    candidates = [json.loads(line) for line in (run / "candidates.jsonl").read_text().splitlines()]
+    actual = {(row["window_id"], row["query_species_id"]) for row in candidates}
+    assert not actual.intersection(references)
+    ordinary = {(label.window_id, label.species_id) for label in labels if label.species_id == "B"}
+    assert actual.intersection(ordinary)
+    assert (
+        json.loads((run / "candidate-selection.json").read_text())["species"]["A"][
+            "positive_windows"
+        ]
+        > 0
+    )
+
+
+@pytest.mark.parametrize("explicit_manifest", [False, True])
+def test_loaded_config_trains_and_saves_manifest_path(local_config, explicit_manifest):
+    config_path = local_config.artifacts.parent / "loaded.toml"
+    manifest_setting = "species_manifest = 'inputs/custom.json'\n" if explicit_manifest else ""
+    config_path.write_text(
+        "[paths]\n"
+        f"audio_roots = {json.dumps([path.as_posix() for path in local_config.audio_roots])}\n"
+        f"annotations_csv = {json.dumps(local_config.annotations_csv.as_posix())}\n"
+        f"artifacts = {json.dumps(local_config.artifacts.as_posix())}\n"
+        f"{manifest_setting}"
+        "[training]\nepochs = 1\nbatch_size = 4\ndevice = 'cpu'\n"
+    )
+    config = load_config(config_path)
+    import_local(config, backend=TinyBackend())
+    directory = train_local(config)
+    saved = json.loads((directory / "config.json").read_text())
+    assert saved["species_manifest"] == str(config.species_manifest)
+    assert saved["artifacts"] == str(config.artifacts)
+    assert load_artifact(directory).species_ids == ("A", "B")
+    assert json.loads((directory / "candidates.json").read_text())["count"] > 0
 
 
 def test_failed_alignment_does_not_publish_partial_catalog_or_latest_snapshot(
@@ -291,3 +352,23 @@ def test_invalid_cached_artifact_rebuilds_only_affected_recording(
     assert backend.embed_calls == 1
     assert sf.info(audio).frames == WINDOW_SAMPLES
     assert np.load(row.path).shape[1] == 2
+
+
+@pytest.mark.parametrize("multi_positive", [False, True])
+def test_similarity_only_run_without_trainable_classifier(local_config, multi_positive):
+    from osa_anurans_app.src.annotations import save_snapshot
+    from osa_anurans_app.src.records import LabelCounts
+
+    import_local(local_config, backend=TinyBackend())
+    with Catalog(local_config.artifacts / "catalog.sqlite") as catalog:
+        row = catalog.embedding_rows(TinyBackend.config_id)[0]
+    labels = [LabelCounts(row.window_id, "ONLY", 1)]
+    if multi_positive:
+        labels.append(LabelCounts(row.window_id, "SECOND", 1))
+    snapshot = save_snapshot(local_config.artifacts / "similarity-labels", labels, "test")
+    run = train_local(local_config, snapshot=snapshot)
+    metadata = json.loads((run / "candidates.json").read_text())
+    assert metadata["classifier_available"] is False
+    assert metadata["count"] > 0
+    assert not (run / "model.pt").exists()
+    assert not (run / "publish.json").exists()

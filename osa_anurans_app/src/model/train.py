@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader
 from ..config import AppConfig
 from ..files import write_json
 from .dataloader import ProbeDataset
-from .datasets import TrainingDataset, split_by_recording
+from .datasets import DatasetSplit, TrainingDataset, split_by_recording
 from .evaluation import classification_metrics
 from .model import LinearProbe, ProbeArtifact, choose_device, save_artifact
 from .validate import validate_training_data
@@ -59,11 +59,14 @@ def report_test_results(metrics: dict) -> None:
         test["loss"],
         100 * test["accuracy"],
     )
-    logger.info("Species    Examples    Recall      F1")
+    logger.info("%-10s %8s %10s %9s %7s", "Species", "Examples", "Precision", "Recall", "F1")
     for species, values in test["per_class"].items():
+        precision = (
+            f"{100 * values['precision']:.1f}%" if values["precision"] is not None else "n/a"
+        )
         recall = f"{100 * values['recall']:.1f}%" if values["recall"] is not None else "n/a"
         f1 = f"{values['f1']:.3f}" if values["f1"] is not None else "n/a"
-        logger.info("%-10s %8s %9s %7s", species, values["support"], recall, f1)
+        logger.info("%-10s %8s %10s %9s %7s", species, values["support"], precision, recall, f1)
 
 
 def _write_split(path: Path, dataset: TrainingDataset, split, species_ids: tuple[str, ...]) -> None:
@@ -105,11 +108,16 @@ def _configuration_metadata(config: AppConfig) -> dict:
     metadata["audio_roots"] = [str(path) for path in config.audio_roots]
     metadata["annotations_csv"] = str(config.annotations_csv) if config.annotations_csv else None
     metadata["artifacts"] = str(config.artifacts)
+    metadata["species_manifest"] = str(config.species_manifest) if config.species_manifest else None
     return metadata
 
 
 def train_classifier(
-    dataset: TrainingDataset, output_dir: Path, config: AppConfig
+    dataset: TrainingDataset,
+    output_dir: Path,
+    config: AppConfig,
+    *,
+    split: DatasetSplit | None = None,
 ) -> ProbeArtifact:
     """Train a single-label multiclass probe and save its evaluation evidence.
 
@@ -133,7 +141,11 @@ def train_classifier(
     valid_rate = np.isfinite(config.learning_rate) and config.learning_rate > 0
     if config.epochs < 1 or config.batch_size < 1 or not valid_rate:
         raise ValueError("Invalid training settings")
-    split = split_by_recording(dataset, config.test_fraction, config.seed)
+    split = (
+        split
+        if split is not None
+        else split_by_recording(dataset, config.test_fraction, config.seed)
+    )
     dimension = validate_training_data(dataset, split)
     species_ids = tuple(sorted({dataset.labels[i] for i in split.train}))
     skipped = sorted(set(dataset.species_ids) - set(species_ids))

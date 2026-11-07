@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 import torch
 from bacpipe.embedding_evaluation.probing.train_probe import LinearProbe as BacpipeLinearProbe
-from osa_anurans_app.src.candidates import iter_candidates
+from osa_anurans_app.src.candidates import iter_uncertainty_scores
 from osa_anurans_app.src.config import AppConfig
 from osa_anurans_app.src.model.dataloader import EmbeddingStore
 from osa_anurans_app.src.model.datasets import build_dataset, split_by_recording
@@ -93,24 +93,13 @@ def test_probe_training_reload_and_full_candidate_coverage(tmp_path, caplog):
         row["recording_id"] for row in splits if row["partition"] == "test"
     )
 
-    candidates = list(
-        iter_candidates(rows, restored, batch_size=2, created_at="2026-11-06T00:00:00+00:00")
-    )
-    assert len(candidates) == len(rows) * 2  # Includes unlabeled and already labeled windows.
-    assert len({row["candidate_id"] for row in candidates}) == len(candidates)
-    assert set(candidates[0]) == {
-        "candidate_id",
-        "window_id",
-        "query_species_id",
-        "created_at",
-        "score",
-    }
-    assert {(row["window_id"], row["query_species_id"]) for row in candidates} == {
+    scores = list(iter_uncertainty_scores(rows, restored, batch_size=2))
+    assert len(scores) == len(rows) * 2  # Includes unlabeled and already labeled windows.
+    assert {(window, species) for window, species, _ in scores} == {
         (row.window_id, species) for row in rows for species in artifact.species_ids
     }
-    repeated = list(iter_candidates(rows, restored, created_at="same timestamp"))
-    assert [row["candidate_id"] for row in candidates] == [row["candidate_id"] for row in repeated]
-    assert all(0 <= row["score"] <= 1 for row in candidates)
+    assert scores == list(iter_uncertainty_scores(rows, restored, batch_size=2))
+    assert all(0 <= score <= 1 for _, _, score in scores)
 
 
 def test_one_training_class_fails_without_model_write(tmp_path):
@@ -205,10 +194,10 @@ def test_candidate_config_and_duplicate_windows_rejected(tmp_path):
     rows, _ = examples(tmp_path)
     artifact = ProbeArtifact(LinearProbe(2, 2), ("A", "B"), "other", "run")
     with pytest.raises(ValueError, match="configuration"):
-        list(iter_candidates(rows, artifact))
+        list(iter_uncertainty_scores(rows, artifact))
     artifact.config_id = "perch-config"
     with pytest.raises(ValueError, match="Duplicate"):
-        list(iter_candidates(rows + rows[:1], artifact))
+        list(iter_uncertainty_scores(rows + rows[:1], artifact))
 
 
 def test_split_keeps_all_species_when_no_holdout_is_possible(tmp_path, caplog):
@@ -244,3 +233,62 @@ def test_split_reduces_holdout_to_preserve_species(tmp_path):
     split = split_by_recording(dataset, test_fraction=0.75)
     assert len({dataset.rows[i].recording_id for i in split.test}) == 1
     assert {dataset.labels[i] for i in split.train} == set(dataset.species_ids)
+
+
+def split_examples(tmp_path, groups):
+    """Build split-only examples; no vector files need to be read."""
+    rows, labels = [], []
+    for recording, species_windows in groups.items():
+        for index, species in enumerate(species_windows):
+            window = f"{recording}w{index}"
+            rows.append(
+                EmbeddingRow(window, recording, "config", tmp_path / f"{recording}.npy", index)
+            )
+            labels.append(LabelCounts(window, species, 1))
+    return build_dataset(rows, labels)
+
+
+def test_split_targets_each_species_and_keeps_single_recordings_in_training(tmp_path):
+    groups = {f"a{i}": ["A"] for i in range(20)}
+    groups.update({f"b{i}": ["B"] for i in range(5)})
+    groups["rare"] = ["C"] * 10
+    dataset = split_examples(tmp_path, groups)
+    split = split_by_recording(dataset)
+    assert {
+        species: len(
+            {dataset.rows[i].recording_id for i in split.test if dataset.labels[i] == species}
+        )
+        for species in dataset.species_ids
+    } == {"A": 4, "B": 1, "C": 0}
+    assert {dataset.labels[i] for i in split.train} == {"A", "B", "C"}
+    assert {dataset.rows[i].recording_id for i in split.train}.isdisjoint(
+        dataset.rows[i].recording_id for i in split.test
+    )
+
+
+def test_split_is_order_independent_and_unrelated_new_species_does_not_reshuffle(tmp_path):
+    groups = {f"a{i}": ["A"] for i in range(10)}
+    groups.update({f"b{i}": ["B"] for i in range(10)})
+    original = split_examples(tmp_path, groups)
+    expected = {original.rows[i].recording_id for i in split_by_recording(original).test}
+    groups["new"] = ["NEW"]
+    updated = split_examples(tmp_path, dict(reversed(list(groups.items()))))
+    actual = {updated.rows[i].recording_id for i in split_by_recording(updated).test}
+    assert actual == expected
+
+
+def test_split_balances_window_counts_with_whole_recordings(tmp_path):
+    groups = {f"short{i}": ["A"] for i in range(9)}
+    groups.update({f"long{i}": ["A"] * 10 for i in range(5)})
+    dataset = split_examples(tmp_path, groups)
+    split = split_by_recording(dataset)
+    assert len({dataset.rows[i].recording_id for i in split.test}) == 3
+    assert len(split.test) == 12  # Approximately 20% of 59 windows, using whole recordings.
+
+
+def test_shared_recordings_never_remove_a_species_from_training(tmp_path, caplog):
+    dataset = split_examples(tmp_path, {"ab": ["A", "B"], "ac": ["A", "C"], "bc": ["B", "C"]})
+    split = split_by_recording(dataset)
+    assert len({dataset.rows[i].recording_id for i in split.test}) == 1
+    assert {dataset.labels[i] for i in split.train} == {"A", "B", "C"}
+    assert "shared recordings limit the split" in caplog.text

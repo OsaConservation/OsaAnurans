@@ -3,6 +3,15 @@
 import math
 
 
+def similarity_fraction(positive_recording_count: int, balance: float = 25) -> float:
+    """Allocate more similarity matches when positive recording coverage is small."""
+    if type(positive_recording_count) is not int or positive_recording_count < 0:
+        raise ValueError("positive_recording_count must be a nonnegative integer")
+    if isinstance(balance, bool) or not math.isfinite(balance) or balance <= 0:
+        raise ValueError("similarity balance must be finite and positive")
+    return balance / (balance + positive_recording_count)
+
+
 def score_candidate(probability: float, context: dict | None = None) -> float:
     """Distance from 50%, a heuristic for the initial softmax classifier.
 

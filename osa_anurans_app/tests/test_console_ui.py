@@ -1,5 +1,7 @@
 """Exercise menu decisions and real terminal key bindings without cloud access."""
 
+from dataclasses import replace
+
 import pytest
 import questionary
 from osa_anurans_app.src import console_ui as ui
@@ -34,6 +36,25 @@ def test_escape_cancels_without_starting():
         question = questionary.checkbox("Steps", choices=["Train"])
         pipe.send_text("\x1b")
         assert ui._ask(question) is None
+
+
+@pytest.mark.parametrize("keys", ["\r", "\x1b", "\x03"])
+def test_path_prompt_supports_enter_escape_and_interrupt(terminal_session, tmp_path, keys):
+    default = str(tmp_path / "species.json")
+    question = questionary.path("Species manifest", default=default)
+    terminal_session.send_text(keys)
+    if keys == "\x03":
+        with pytest.raises(KeyboardInterrupt):
+            ui._ask(question)
+        return
+    assert ui._ask(question) == (default if keys == "\r" else None)
+
+
+def test_path_prompt_preserves_text_editing_bindings(terminal_session, tmp_path):
+    question = questionary.path("Species manifest", default="old.json")
+    replacement = str(tmp_path / "new.json")
+    terminal_session.send_text("\x01\x0b" + replacement + "\r")
+    assert ui._ask(question) == replacement
 
 
 @pytest.mark.parametrize("selected", [[], ["unknown"]])
@@ -100,7 +121,7 @@ def test_opening_screen_shows_checklist_and_toggles_with_space(terminal_session,
 
 def test_opening_screen_exit_does_not_run_checked_steps(terminal_session, tmp_path):
     config = AppConfig((tmp_path,), None, tmp_path / "artifacts")
-    terminal_session.send_text("\x1b[B" * 5 + "\r")
+    terminal_session.send_text("\x1b[B" * (len(ui.STEP_LABELS) + 1) + "\r")
     assert ui._workflow_menu(["refresh", "train"], config) == "exit"
 
 
@@ -108,3 +129,39 @@ def test_empty_selection_cannot_continue(terminal_session, tmp_path):
     config = AppConfig((tmp_path,), None, tmp_path / "artifacts")
     terminal_session.send_text("\r\x1b")
     assert ui._workflow_menu([], config) is None
+
+
+def test_cleanup_is_an_independent_workflow_step():
+    assert ui.Workflow.from_selection(["cleanup"]).steps == ("cleanup",)
+    assert ui.Workflow.from_selection(["cleanup", "publish"]).steps == (
+        "train",
+        "publish",
+        "cleanup",
+    )
+
+
+def test_opening_menu_can_toggle_cleanup(terminal_session, tmp_path):
+    config = AppConfig((tmp_path,), None, tmp_path / "artifacts")
+    position = list(ui.STEP_LABELS).index("cleanup")
+    terminal_session.send_text("\x1b[B" * position + " \r")
+    assert ui._workflow_menu(["refresh", "train"], config) == ["refresh", "train", "cleanup"]
+
+
+def test_workflow_labels_show_input_and_output_paths(tmp_path):
+    config = AppConfig(
+        (tmp_path / "inputs" / "audio-inbox",),
+        None,
+        tmp_path / "outputs",
+        species_manifest=tmp_path / "inputs" / "species.json",
+    )
+    labels = ui.workflow_labels(config)
+    assert str(config.audio_roots[0]) in labels["import"]
+    assert str(config.species_manifest_path) in labels["add-species"]
+    assert str(config.artifacts / "runs") in labels["train"]
+    custom = tmp_path / "another.json"
+    assert (
+        str(custom) in ui.workflow_labels(replace(config, species_manifest=custom))["add-species"]
+    )
+    assert (
+        replace(config, species_manifest=None).species_manifest_path == config.species_manifest_path
+    )

@@ -157,3 +157,48 @@ def test_default_config_prefers_local_and_accepts_explicit_override(tmp_path, mo
     monkeypatch.setattr(cli, "default_config", lambda: default_config(tmp_path))
     assert cli.parser().parse_args([]).config == local
     assert cli.parser().parse_args(["--config", str(example)]).config == example
+
+
+def test_input_and_output_config_paths_resolve_beside_config(tmp_path):
+    from osa_anurans_app.src.config import load_config
+
+    path = tmp_path / "config.toml"
+    path.write_text("[paths]\naudio_roots = ['inputs/audio-inbox']\n")
+    config = load_config(path)
+    assert config.audio_roots == (tmp_path / "inputs" / "audio-inbox",)
+    assert config.artifacts == tmp_path / "outputs"
+    assert config.species_manifest_path == tmp_path / "inputs" / "species.json"
+    path.write_text(
+        "[paths]\naudio_roots = ['inputs/audio-inbox']\nspecies_manifest = 'inputs/custom.json'\n"
+    )
+    assert load_config(path).species_manifest_path == tmp_path / "inputs" / "custom.json"
+
+
+def test_cleanup_workflow_runs_after_publication_or_on_its_own(tmp_path, monkeypatch):
+    config = AppConfig((tmp_path,), None, tmp_path / "artifacts")
+    directory = config.artifacts / "runs" / "new-run"
+    monkeypatch.setattr(cli, "train_local", lambda config: directory)
+    calls = []
+    monkeypatch.setattr(
+        cli, "_execute_cloud", lambda args, config: calls.append((args.action, args.run_directory))
+    )
+    cli.execute_workflow(cli.Workflow.from_selection(["publish", "cleanup"]), config)
+    assert calls == [("publish", directory), ("cleanup", directory)]
+    calls.clear()
+    cli.execute_workflow(cli.Workflow.from_selection(["cleanup"]), config)
+    assert calls == [("cleanup", None)]
+    assert cli.parser().parse_args(["cleanup"]).action == "cleanup"
+    assert cli.parser().parse_args(["publish", str(directory), "--cleanup"]).cleanup is True
+
+
+def test_failed_publication_stops_cleanup(tmp_path, monkeypatch):
+    config = AppConfig((tmp_path,), None, tmp_path / "artifacts")
+    monkeypatch.setattr(cli, "train_local", lambda config: tmp_path / "run")
+
+    def fail(args, config):
+        assert args.action == "publish"
+        raise RuntimeError("publication failed")
+
+    monkeypatch.setattr(cli, "_execute_cloud", fail)
+    with pytest.raises(RuntimeError, match="publication failed"):
+        cli.execute_workflow(cli.Workflow.from_selection(["publish", "cleanup"]), config)

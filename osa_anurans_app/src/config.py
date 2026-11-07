@@ -15,9 +15,11 @@ class AppConfig:
     - audio_roots: Directories to ingest new recordings from.
     - annotations_csv: Optional CSV labels for one-time seed imports.
     - artifacts: Store SQLite, WAVs, vectors, snapshots, and training runs.
+    - species_manifest: JSON input for adding species references and seed votes.
     - project/dataset/bucket/prefix/location: Explicit cloud destinations.
     - device/seed/epochs/batch_size/learning_rate/test_fraction: Training settings.
     - candidates_per_species: Maximum saved candidates per species; default 100.
+    - similarity_balance: Positive recording count giving a 50/50 candidate mix.
     """
 
     audio_roots: tuple[Path, ...]
@@ -35,6 +37,13 @@ class AppConfig:
     learning_rate: float = 0.0005
     test_fraction: float = 0.2
     candidates_per_species: int = 100
+    similarity_balance: float = 25
+    species_manifest: Path | None = None
+
+    @property
+    def species_manifest_path(self) -> Path:
+        """Use the configured manifest, or inputs/species.json beside the output folder."""
+        return self.species_manifest or self.artifacts.parent / "inputs" / "species.json"
 
 
 def default_config(directory: Path | None = None) -> Path:
@@ -68,7 +77,8 @@ def load_config(path: Path) -> AppConfig:
     config = AppConfig(
         audio_roots=tuple(resolve(p) for p in paths["audio_roots"]),
         annotations_csv=resolve(paths["annotations_csv"]) if paths.get("annotations_csv") else None,
-        artifacts=resolve(paths.get("artifacts", "artifacts")),
+        artifacts=resolve(paths.get("artifacts", "outputs")),
+        species_manifest=resolve(paths.get("species_manifest", "inputs/species.json")),
         **data.get("cloud", {}),
         **data.get("training", {}),
         **data.get("candidates", {}),
@@ -107,6 +117,12 @@ def validate_config(config: AppConfig) -> None:
         raise ValueError("test_fraction must be between zero and one")
     if type(config.candidates_per_species) is not int or config.candidates_per_species < 1:
         raise ValueError("candidates_per_species must be a positive integer")
+    if (
+        isinstance(config.similarity_balance, bool)
+        or not math.isfinite(config.similarity_balance)
+        or config.similarity_balance <= 0
+    ):
+        raise ValueError("similarity_balance must be finite and positive")
 
 
 def validate_import_sources(config: AppConfig) -> None:

@@ -47,7 +47,8 @@ CREATE TABLE IF NOT EXISTS `osaanurans.osafrogdataset.candidates` (
   window_id STRING NOT NULL,
   query_species_id STRING NOT NULL,
   created_at TIMESTAMP NOT NULL,
-  score FLOAT64 NOT NULL
+  score FLOAT64 NOT NULL,
+  selection_method STRING
 );
 
 CREATE TABLE IF NOT EXISTS `osaanurans.osafrogdataset.annotations` (

@@ -1,8 +1,9 @@
 [paths]
 # Place new audio here; subdirectories are included.
-audio_roots = ['audio-inbox']
+audio_roots = ['inputs/audio-inbox']
+species_manifest = 'inputs/species.json'
 # Labels come from BigQuery. annotations_csv is only for one-time seed imports.
-artifacts = 'artifacts'
+artifacts = 'outputs'
 
 [training]
 device = 'auto'
@@ -15,6 +16,8 @@ test_fraction = 0.2
 [candidates]
 # Keep the lowest scores per species; upload only windows in this selection.
 candidates_per_species = 100
+# Equal similarity/uncertainty allocation at this many positive recordings.
+similarity_balance = 25
 
 # Used only by explicitly requested cloud commands.
 [cloud]

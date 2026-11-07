@@ -12,8 +12,10 @@ Commands:
 - both: Run import, then train.
 - status: Show local catalog counts.
 - publish: Upload WAVs to GCS, insert BigQuery metadata, then replace candidates.
+- cleanup: Delete GCS window WAVs with neither annotations nor current candidates.
 - refresh: Read BigQuery answers into a local label snapshot.
-- inference/add-species: Reserved; not implemented.
+- add-species: Add reference audio, local vectors, and cloud seed annotations.
+- inference: Reserved; not implemented.
 """
 
 import argparse
@@ -30,6 +32,14 @@ from .console_ui import STEP_LABELS, Workflow, choose_run, configure_workflow
 from .pipeline import import_local, refresh_annotations, train_local
 
 logger = logging.getLogger(__name__)
+
+
+class _ConsoleFormatter(logging.Formatter):
+    """Keep routine output plain; label warnings, errors, and debug messages."""
+
+    def format(self, record):
+        message = super().format(record)
+        return message if record.levelno == logging.INFO else f"{record.levelname} {message}"
 
 
 def configure_cloud_environment(config) -> None:
@@ -94,8 +104,17 @@ def parser() -> argparse.ArgumentParser:
     commands.add_parser("refresh", help="Fetch BigQuery answers and save a consensus snapshot")
     publish = commands.add_parser("publish", help="Replace cloud candidates with a saved local run")
     publish.add_argument("run_directory", type=Path)
+    publish.add_argument(
+        "--cleanup", action="store_true", help="Remove unused cloud window clips after publication"
+    )
+    commands.add_parser(
+        "cleanup", help="Remove cloud audio without annotations or current candidates"
+    )
     commands.add_parser("inference", help="Reserved for later implementation")
-    commands.add_parser("add-species", help="Reserved for later implementation")
+    add = commands.add_parser(
+        "add-species", help="Add reference audio and seed annotations to Google Cloud"
+    )
+    add.add_argument("--manifest", type=Path, required=True, help="JSON species/reference manifest")
     return result
 
 
@@ -159,21 +178,31 @@ def _execute_cloud(args, config) -> None:
         3. Replace candidates from a saved run.
 
     Reuse rules:
-    - Skip windows already marked registered locally.
+    - Check GCS in bulk; restore missing clips even if registered locally.
     - Check existing BigQuery window IDs in batches; insert only missing rows.
     - Reject conflicting window metadata or GCS file contents.
     """
-    from .publish import check_cloud_access, publish_candidates
+    from .publish import check_cloud_access, cleanup_cloud_audio, publish_candidates
 
     if args.action == "refresh":
         print("Annotation snapshot:", refresh_annotations(config, _annotation_store(config)))
         return
     bq, storage = check_cloud_access(config)
     with Catalog(config.artifacts / "catalog.sqlite") as catalog:
+        if args.action == "cleanup":
+            directory = getattr(args, "run_directory", None)
+            cleanup_cloud_audio(
+                config,
+                catalog,
+                bq,
+                storage,
+                publication_manifest=directory / "publish.json" if directory else None,
+            )
+            return
         directory = args.run_directory.resolve()
         manifest = json.loads((directory / "candidates.json").read_text(encoding="utf-8"))
         # Read the saved run's candidate count and JSONL path for BigQuery replacement.
-        publish_candidates(
+        published = publish_candidates(
             config,
             catalog,
             directory / "candidates.jsonl",
@@ -181,8 +210,12 @@ def _execute_cloud(args, config) -> None:
             directory.name,
             bq,
             storage,
+            cleanup=getattr(args, "cleanup", False),
         )
-        print("Published candidates:", manifest["count"])
+        if published:
+            print("Published candidates:", manifest["count"])
+        else:
+            print("Run was already published; current cloud candidate queue preserved.")
 
 
 def execute(args, config, interactive: bool = False) -> None:
@@ -209,10 +242,15 @@ def execute(args, config, interactive: bool = False) -> None:
         elif workflow is not None:
             execute_workflow(workflow, config)
         return
-    if args.action in {"inference", "add-species"}:
+    if args.action == "add-species":
+        from .species import add_species, load_manifest
+
+        print("Annotation snapshot:", add_species(config, load_manifest(args.manifest)))
+        return
+    if args.action == "inference":
         print("This action is reserved and has not been implemented yet.")
         return
-    if args.action in {"refresh", "publish"}:
+    if args.action in {"refresh", "publish", "cleanup"}:
         if args.action == "publish" and interactive:
             directory = choose_run(config)
             if directory is not None:
@@ -253,20 +291,39 @@ def execute_workflow(workflow: Workflow, config) -> None:
     - Completed local artifacts are retained if a later step fails.
     - Never request more input after processing starts.
     """
-    workflow = Workflow.from_selection(list(workflow.steps))
+    workflow = Workflow.from_selection(list(workflow.steps), workflow.species_manifest)
+    refreshed = False
     directory = None
     for index, step in enumerate(workflow.steps, start=1):
         print(flush=True)
         logger.info("Step %s/%s: %s", index, len(workflow.steps), STEP_LABELS[step])
         if step == "import":
             import_local(config)
+        elif step == "add-species":
+            from .species import add_species
+
+            if workflow.species_manifest is None:
+                raise ValueError("Select and review a species manifest before starting")
+            add_species(config, workflow.species_manifest)
+            refreshed = True
         elif step == "refresh":
-            refresh_annotations(config, _annotation_store(config))
+            if refreshed:
+                logger.info("Using the complete annotation snapshot fetched by Add species")
+            else:
+                refresh_annotations(config, _annotation_store(config))
         elif step == "train":
             directory = train_local(config)
             print("Local run saved:", directory)
         elif step == "publish":
             _execute_cloud(argparse.Namespace(action="publish", run_directory=directory), config)
+        elif step == "cleanup":
+            _execute_cloud(
+                argparse.Namespace(
+                    action="cleanup",
+                    run_directory=directory if "publish" in workflow.steps else None,
+                ),
+                config,
+            )
     print("Workflow completed.")
 
 
@@ -289,9 +346,9 @@ def main(argv=None) -> int:
     - argv=None reads process arguments; tests can pass an explicit list.
     """
     args = parser().parse_args(argv)
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO, format="%(levelname)s %(message)s"
-    )
+    console = logging.StreamHandler()
+    console.setFormatter(_ConsoleFormatter("%(message)s"))
+    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, handlers=[console])
     handler = None
     try:
         config = load_config(args.config)

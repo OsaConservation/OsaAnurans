@@ -200,6 +200,25 @@ def save_snapshot(
     return directory
 
 
+def load_reference_seed_pairs(directory: Path) -> set[tuple[str, str]]:
+    """Read reference/template provenance from the snapshot's original answers.
+
+    - Exclude these window/species pairs from review, regardless of later votes.
+    - Ordinary annotations, including Grillos ground truth, remain eligible for uncertainty.
+    - CSV snapshots without original answers contain no reference seed provenance.
+    """
+    path = directory / "answers.jsonl"
+    if not path.exists():
+        return set()
+    pairs = set()
+    with path.open(encoding="utf-8") as stream:
+        for line in stream:
+            answer = json.loads(line)
+            if answer.get("annotator_id") in {"new-species", "eoin-template-seed"}:
+                pairs.add((answer["window_id"], answer["query_species_id"]))
+    return pairs
+
+
 def load_snapshot(directory: Path) -> list[LabelCounts]:
     """Load vote counts from a saved snapshot.
 

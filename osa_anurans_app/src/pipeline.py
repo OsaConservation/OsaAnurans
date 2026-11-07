@@ -31,7 +31,13 @@ from uuid import uuid4
 import numpy as np
 from tqdm import tqdm
 
-from .annotations import aggregate_votes, load_snapshot, map_intervals_to_windows, save_snapshot
+from .annotations import (
+    aggregate_votes,
+    load_reference_seed_pairs,
+    load_snapshot,
+    map_intervals_to_windows,
+    save_snapshot,
+)
 from .audio import identify_recording, recording_windows, valid_window_audio, write_window_audio
 from .catalog import Catalog
 from .config import AppConfig, validate_import_sources
@@ -126,7 +132,7 @@ def _cached_artifact(
         return False
 
 
-def _store_recording(catalog: Catalog, recording, backend, artifacts: Path) -> bool:
+def _store_recording(catalog: Catalog, recording, backend, artifacts: Path, *, frames=None) -> bool:
     """Generate and register one recording's aligned audio/vector artifacts.
 
     Steps:
@@ -137,6 +143,9 @@ def _store_recording(catalog: Catalog, recording, backend, artifacts: Path) -> b
 
     Returns:
     - True if generated; False if reused.
+
+    Options:
+    - frames: Reuse already validated model input (e.g. a new species reference).
     """
     windows = recording_windows(recording)
     if _cached_artifact(
@@ -147,7 +156,8 @@ def _store_recording(catalog: Catalog, recording, backend, artifacts: Path) -> b
         backend.metadata.get("embedding_dimension"),
     ):
         return False
-    frames = backend.prepare_audio(recording.path)
+    if frames is None:
+        frames = backend.prepare_audio(recording.path)
     if len(frames) != len(windows):
         raise ValueError(
             f"Audio/window alignment mismatch for {recording.path}: {len(frames)} vs {len(windows)}"
@@ -516,7 +526,7 @@ def train_local(
     1. Select saved embeddings and a label snapshot.
     2. Select windows with one known-present species; keep recordings in one split.
     3. Train/evaluate the classifier; save weights, species order, and metrics.
-    4. Score all windows; save up to N lowest-scoring candidates per species.
+    4. Select similar/uncertain windows; save up to N candidates per species.
 
     Returns:
     - Path to the new model/candidate run directory.
@@ -528,7 +538,7 @@ def train_local(
     - No original audio required and no cloud writes.
     """
     from .candidates import write_candidates
-    from .model.datasets import build_dataset
+    from .model.datasets import DatasetSplit, build_dataset, split_by_recording
     from .model.train import train_classifier
 
     # 1. Select the saved inputs; original source audio is not needed for training.
@@ -548,16 +558,33 @@ def train_local(
     labels = load_snapshot(snapshot)
     dataset = build_dataset(rows, labels)
     run_dir = config.artifacts / "runs" / new_run_id()
-    artifact = train_classifier(dataset, run_dir, config)
+    # Reuse exactly the same split for model evaluation and candidate exclusion.
+    if len({row.recording_id for row in dataset.rows}) >= 2:
+        split = split_by_recording(dataset, config.test_fraction, config.seed)
+    else:
+        split = DatasetSplit(list(range(len(dataset.rows))), [])
+    held_out = {dataset.rows[index].recording_id for index in split.test}
+    artifact = None
+    if len({dataset.labels[index] for index in split.train}) >= 2:
+        artifact = train_classifier(dataset, run_dir, config, split=split)
+    else:
+        logger.warning("Not enough classes for a probe; generating similarity-only candidates")
+        run_dir.mkdir(parents=True)
+        write_json(run_dir / "config.json", {"mode": "similarity_only", "config_id": config_id})
     write_json(run_dir / "annotations.json", {"snapshot": str(snapshot.resolve())})
 
-    # 3. Score all windows, then retain the configured lowest scores per species.
+    # 3. Select similarity matches first, then uncertainty; never query the cloud.
     count = write_candidates(
         run_dir / "candidates.jsonl",
         rows,
         artifact,
         config.batch_size,
         config.candidates_per_species,
+        labels=labels,
+        reference_seed_pairs=load_reference_seed_pairs(snapshot),
+        held_out_recordings=held_out,
+        similarity_balance=config.similarity_balance,
+        run_id=run_dir.name,
     )
     write_json(
         run_dir / "candidates.json",
@@ -565,9 +592,12 @@ def train_local(
             "count": count,
             "window_count": len(rows),
             "candidates_per_species": config.candidates_per_species,
-            "species_ids": artifact.species_ids,
+            "species_ids": sorted(
+                json.loads((run_dir / "candidate-selection.json").read_text())["species"]
+            ),
+            "classifier_available": artifact is not None,
             "local_only": True,
         },
     )
-    logger.info("Local classifier and %d candidates saved: %s", count, run_dir)
+    logger.info("Local run with %d candidates saved: %s", count, run_dir)
     return run_dir

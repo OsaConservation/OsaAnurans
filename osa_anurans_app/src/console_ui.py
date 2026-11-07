@@ -3,18 +3,24 @@
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import questionary
 from prompt_toolkit.application import Application
-from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
 from prompt_toolkit.layout import Layout, Window
 from prompt_toolkit.layout.controls import FormattedTextControl
 
+if TYPE_CHECKING:
+    from .species import SpeciesManifest
+
 STEP_LABELS = {
     "import": "Import new audio",
+    "add-species": "Add species references and seed annotations",
     "refresh": "Fetch latest annotations from BigQuery",
     "train": "Train classifier and generate candidates",
     "publish": "Upload candidates to Google Cloud",
+    "cleanup": "Remove unused cloud audio clips",
 }
 
 
@@ -23,25 +29,32 @@ class Workflow:
     """Selected steps in execution order; uploads always use a newly trained run."""
 
     steps: tuple[str, ...]
+    species_manifest: "SpeciesManifest | None" = None
 
     @classmethod
-    def from_selection(cls, selected: list[str]) -> "Workflow":
+    def from_selection(cls, selected: list[str], species_manifest=None) -> "Workflow":
         """Order steps, require a selection, and include training for uploads."""
         steps = set(selected)
         if not steps or steps - STEP_LABELS.keys():
             raise ValueError("Select at least one supported workflow step")
         if "publish" in steps:
             steps.add("train")
-        return cls(tuple(step for step in STEP_LABELS if step in steps))
+        return cls(tuple(step for step in STEP_LABELS if step in steps), species_manifest)
 
 
 def _ask(question):
     """Escape cancels; Ctrl+C propagates to the CLI's interruption handler."""
+    bindings = KeyBindings()
 
-    @question.application.key_bindings.add("escape", eager=True)
+    @bindings.add("escape", eager=True)
     def cancel(event):
         event.app.exit(result=None)
 
+    # Path prompts already have merged bindings; compose instead of mutating them.
+    original = question.application.key_bindings
+    question.application.key_bindings = (
+        merge_key_bindings([original, bindings]) if original is not None else bindings
+    )
     return question.unsafe_ask()
 
 
@@ -62,9 +75,11 @@ def workflow_labels(config) -> dict[str, str]:
     roots = ", ".join(str(path) for path in config.audio_roots)
     return {
         "import": f"Import new audio (from {roots})",
+        "add-species": f"Add species references and seed annotations (from {config.species_manifest_path})",
         "refresh": "Fetch latest annotations Google BigQuery",
         "train": f"Train classifier and generate candidates (save to {config.artifacts / 'runs'})",
         "publish": "Upload candidates to Google Storage and BigQuery",
+        "cleanup": "Remove unused cloud audio clips (keep annotated and current candidate clips)",
     }
 
 
@@ -144,21 +159,25 @@ def _workflow_menu(selected: list[str], config):
 def configure_workflow(config) -> Workflow | str | None:
     """Choose steps, review the plan, then start or return to editing."""
     selected = ["refresh", "train"]
+    manifest = None
     while True:
         selection = _workflow_menu(selected, config)
         if selection is None or isinstance(selection, str):
             return selection
         selected = selection
-        workflow = Workflow.from_selection(selected)
+        if "add-species" in selected:
+            from .species import load_manifest
+
+            try:
+                manifest = load_manifest(config.species_manifest_path)
+            except (ValueError, OSError) as exc:
+                print(f"Cannot read species manifest {config.species_manifest_path}: {exc}")
+                continue
+        workflow = Workflow.from_selection(selected, manifest)
         if "publish" in selected and "train" not in selected:
             print("Training included: upload uses the candidates from this new run.")
         selected = list(workflow.steps)
-        print("\nReady to run:")
-        for index, step in enumerate(workflow.steps, start=1):
-            print(f"  {index}. {STEP_LABELS[step]}")
-        if "publish" in workflow.steps:
-            display_upload_effect(config)
-        print("After starting, all selected steps run without further prompts.")
+        display_workflow_review(workflow, config)
         decision = _select("Continue?", ["Start workflow", "Go back", "Cancel"])
         if decision == "Start workflow":
             return workflow
@@ -166,11 +185,30 @@ def configure_workflow(config) -> Workflow | str | None:
             return None
 
 
-def display_upload_effect(config) -> None:
-    """Explain the destination and replacement before starting uploads."""
-    print(f"\nUpload destination: {config.project}.{config.dataset}")
-    print(f"Candidate clips: gs://{config.bucket}/{config.prefix}/")
-    print("Uploading replaces the website's candidate queue. Existing annotations are kept.")
+def display_workflow_review(workflow: Workflow, config) -> None:
+    """Keep each action's essential effects directly beneath its numbered step."""
+    print("\nReady to run:")
+    for index, step in enumerate(workflow.steps, start=1):
+        title = STEP_LABELS[step]
+        if step == "refresh" and "add-species" in workflow.steps:
+            title = "Use annotations refreshed when adding species"
+        print(f"\n  {index}. {title}")
+        if step == "import":
+            print(f"     Read audio from: {', '.join(str(path) for path in config.audio_roots)}")
+        elif step == "add-species":
+            manifest = workflow.species_manifest
+            print(f"     Read species from: {manifest.path}")
+            for entry in manifest.entries:
+                print(f"     {entry.species_id}: {entry.common_name}")
+            count = len(manifest.entries)
+            print(
+                f"     Upload {count} reference clip{'s' if count != 1 else ''} and add presence labels."
+            )
+        elif step == "publish":
+            print("     Uploading replaces the website's candidate queue.")
+        elif step == "cleanup":
+            print("     Delete clips with no annotations or current candidates.")
+    print("\nAll steps run automatically after starting.")
 
 
 def choose_run(config) -> Path | None:
@@ -197,7 +235,7 @@ def choose_run(config) -> Path | None:
     directory = _select("Choose a saved run to upload", choices)
     if directory is None:
         return None
-    display_upload_effect(config)
+    print("Uploading replaces the website's candidate queue.")
     if _select("Upload this run?", ["Cancel", "Upload candidates"]) != "Upload candidates":
         return None
     return directory

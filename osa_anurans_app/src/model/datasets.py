@@ -1,10 +1,9 @@
 """Build single-label training examples and keep recordings on one split side."""
 
+import hashlib
 import logging
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-
-import numpy as np
 
 from ..records import EmbeddingRow, LabelCounts
 
@@ -102,18 +101,72 @@ def build_dataset(rows: list[EmbeddingRow], labels: list[LabelCounts]) -> Traini
     )
 
 
+def _test_recordings(dataset: TrainingDataset, test_fraction: float, seed: int) -> set[str]:
+    """Meet per-species recording quotas without splitting shared recordings.
+
+    - Handle scarce species first; one-recording species have a zero test quota.
+    - Prefer recordings that keep each species' window counts near its target share.
+    - Use stable hash ordering so an unrelated new species does not reshuffle others.
+    """
+    by_recording = defaultdict(Counter)
+    by_species = defaultdict(set)
+    for row, species in zip(dataset.rows, dataset.labels, strict=True):
+        by_recording[row.recording_id][species] += 1
+        by_species[species].add(row.recording_id)
+    targets = {
+        species: min(len(recordings) - 1, max(1, round(len(recordings) * test_fraction)))
+        for species, recordings in by_species.items()
+    }
+    ranks = {
+        recording: hashlib.sha256(f"{seed}:{recording}".encode()).digest()
+        for recording in by_recording
+    }
+    selected, test_counts, test_windows = set(), Counter(), Counter()
+    total_windows = Counter(dataset.labels)
+    for species in sorted(by_species, key=lambda item: (len(by_species[item]), item)):
+        while test_counts[species] < targets[species]:
+            available = [
+                recording
+                for recording in by_species[species] - selected
+                if all(test_counts[item] < targets[item] for item in by_recording[recording])
+            ]
+            if not available:
+                break
+            # Aim for the average number of windows per recording at each selection.
+            desired = total_windows[species] / len(by_species[species]) * (test_counts[species] + 1)
+            recording = min(
+                available,
+                key=lambda item: (
+                    abs(test_windows[species] + by_recording[item][species] - desired),
+                    ranks[item],
+                ),
+            )
+            selected.add(recording)
+            test_counts.update(by_recording[recording].keys())
+            test_windows.update(by_recording[recording])
+        if test_counts[species] < targets[species]:
+            logger.warning(
+                "%s: held out %d of %d target recordings; shared recordings limit the split",
+                species,
+                test_counts[species],
+                targets[species],
+            )
+    return selected
+
+
 def split_by_recording(
     dataset: TrainingDataset, test_fraction: float = 0.2, seed: int = 42
 ) -> DatasetSplit:
-    """Assign whole recordings while keeping every species in training.
+    """Split per species, assigning whole recordings and retaining training coverage.
 
     Rules:
     - Keep adjacent windows from the same recording on one side.
     - Require at least two labeled recordings and a test fraction in (0, 1).
-    - Move a recording to test only if every species remains in training.
-    - The requested test fraction is a target; coverage takes priority.
+    - Target test_fraction of each species' labeled recordings, with at least one in training.
+    - Keep a species' only recording in training; test metrics remain unavailable.
+    - Shared recordings can prevent exact per-species quotas; coverage takes priority.
     - If none can be held out, train on all recordings and report no evaluation.
-    - Do not promise class balance or separation by deployment/site/date.
+    - Approximate window balance; no separation by deployment/site/date is promised.
 
     Returns:
     - Row indices for each partition, preserving original example order.
@@ -124,35 +177,12 @@ def split_by_recording(
     if len(recordings) < 2:
         raise ValueError("Need labeled windows from at least two recordings for a held-out split")
 
-    shuffled = np.random.default_rng(seed).permutation(recordings)
-    test_count = max(1, min(len(recordings) - 1, round(len(recordings) * test_fraction)))
-    species_by_recording: dict[str, set[str]] = defaultdict(set)
-    for row, species in zip(dataset.rows, dataset.labels, strict=True):
-        species_by_recording[row.recording_id].add(species)
-    # Count supporting recordings, rather than windows, to avoid leakage.
-    remaining = Counter(
-        species for species_set in species_by_recording.values() for species in species_set
-    )
-    test_recordings = set()
-    for recording in shuffled:
-        species = species_by_recording[recording]
-        if any(remaining[item] <= 1 for item in species):
-            continue
-        test_recordings.add(recording)
-        remaining.subtract(species)
-        if len(test_recordings) == test_count:
-            break
+    test_recordings = _test_recordings(dataset, test_fraction, seed)
     if not test_recordings:
         logger.warning(
             "No recording can be held out while keeping every species in training. "
             "Using all labeled recordings for training; held-out evaluation is unavailable. "
             "Add labeled recordings to enable evaluation."
-        )
-    elif len(test_recordings) < test_count:
-        logger.warning(
-            "Held out %d of %d requested recordings to keep every species in training",
-            len(test_recordings),
-            test_count,
         )
     train = []
     test = []

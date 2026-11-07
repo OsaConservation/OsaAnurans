@@ -3,6 +3,7 @@ import csv
 import pytest
 from osa_anurans_app.src.annotations import (
     aggregate_votes,
+    load_reference_seed_pairs,
     load_snapshot,
     map_intervals_to_windows,
     save_snapshot,
@@ -14,6 +15,42 @@ from osa_anurans_app.src.records import (
     WindowRecord,
 )
 from osa_anurans_app.src.sources import discover_recordings, read_interval_labels
+
+
+def test_reference_seed_provenance_ignores_other_annotators_and_later_votes(tmp_path):
+    answers = [
+        {
+            "window_id": "w1",
+            "query_species_id": "A",
+            "annotator_id": "new-species",
+            "response": "present",
+        },
+        {
+            "window_id": "w2",
+            "query_species_id": "B",
+            "annotator_id": "eoin-template-seed",
+            "response": "present",
+        },
+        {"window_id": "w1", "query_species_id": "A", "annotator_id": "human", "response": "absent"},
+        {
+            "window_id": "w3",
+            "query_species_id": "A",
+            "annotator_id": "grillos-seed-gt",
+            "response": "present",
+        },
+        {
+            "window_id": "w4",
+            "query_species_id": "A",
+            "annotator_id": "human",
+            "response": "present",
+        },
+    ]
+    snapshot = save_snapshot(
+        tmp_path / "bq", aggregate_votes(answers), "bigquery", raw_answers=answers
+    )
+    assert load_reference_seed_pairs(snapshot) == {("w1", "A"), ("w2", "B")}
+    csv = save_snapshot(tmp_path / "csv", [LabelCounts("w1", "A", 1)], "labels.csv")
+    assert load_reference_seed_pairs(csv) == set()
 
 
 def write_annotations(path, rows):

@@ -10,7 +10,14 @@ from ..config import AppConfig
 from ..progress import activity
 from ..records import RecordingRecord, WindowRecord
 
-CANDIDATE_COLUMNS = ("candidate_id", "window_id", "query_species_id", "created_at", "score")
+CANDIDATE_COLUMNS = (
+    "candidate_id",
+    "window_id",
+    "query_species_id",
+    "created_at",
+    "score",
+    "selection_method",
+)
 
 
 def validate_candidates(path: Path, expected_count: int) -> None:
@@ -46,6 +53,8 @@ def validate_candidates(path: Path, expected_count: int) -> None:
                     raise ValueError("Score must be numeric")
                 if not math.isfinite(score) or not 0 <= score <= 1:
                     raise ValueError("Score must be finite and between zero and one")
+                if row["selection_method"] not in ("similarity", "uncertainty"):
+                    raise ValueError("selection_method must be similarity or uncertainty")
                 timestamp = datetime.fromisoformat(row["created_at"].replace("Z", "+00:00"))
                 if timestamp.utcoffset() is None:
                     raise ValueError("Candidate timestamp must include a timezone")
@@ -121,6 +130,31 @@ class BigQueryStore:
         """
         return [dict(row) for row in self._query(query)]
 
+    def protected_window_ids(self) -> set[str]:
+        """Keep audio referenced by any current candidate or annotation, across species.
+
+        - Include unsure answers; no vote or consensus filtering.
+        - Do not join windows: references still protect clips if metadata is missing.
+        """
+        return {
+            row["window_id"]
+            for row in self._query(f"""
+                SELECT window_id FROM {self._table("candidates")}
+                UNION DISTINCT
+                SELECT window_id FROM {self._table("annotations")}
+            """)
+        }
+
+    def storage_usage(self) -> dict[str, int]:
+        """Read current logical table bytes from dataset metadata; do not scan rows.
+
+        - Include all dataset tables, including temporary staging tables if present.
+        - Metadata can lag writes; this is table data size, not query usage or a bill.
+        """
+        tables = self.client.list_tables(self.dataset)
+        size = sum(self.client.get_table(table.reference).num_bytes or 0 for table in tables)
+        return {"logical_bytes": size}
+
     def existing_windows(self, window_ids) -> dict[str, dict]:
         """Fetch metadata for requested IDs in batches of up to 5000.
 
@@ -150,7 +184,7 @@ class BigQueryStore:
         """Load JSON metadata into a staging table, set expiry, and return its name."""
         destination = f"{self.dataset}.{name}"
         config = _bigquery().LoadJobConfig(schema=schema, write_disposition="WRITE_TRUNCATE")
-        with activity(f"BigQuery: uploading {len(rows)} window metadata rows"):
+        with activity(f"BigQuery: uploading {len(rows)} metadata rows"):
             self.client.load_table_from_json(
                 rows, destination, job_config=config, location=self.config.location
             ).result()
