@@ -41,6 +41,7 @@
 
 #scientific {
     width: 100%;
+    margin-bottom: 16px;
     padding: 12px;
     font: inherit;
     border: 1px solid #526b52;
@@ -68,7 +69,7 @@
     grid-column: 1 / -1;
 }
 
-#frog-card .frog-card > img {
+#frog-card .frog-card > .media-image img {
     max-height: 140px;
 }
 
@@ -106,20 +107,21 @@
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: 260px;
-    grid-template-rows: auto auto 100px auto;
-    gap: 8px 10px;
+    grid-template-rows: auto auto auto auto auto;
+    align-items: stretch;
+    gap: 3px 10px;
 }
 
 .frog-carousel > li {
     display: grid;
-    grid-row: span 4;
+    grid-row: span 5;
     grid-template-rows: subgrid;
     min-width: 0;
 }
 
 .frog-carousel .frog-card {
     display: grid;
-    grid-row: span 4;
+    grid-row: span 5;
     grid-template-rows: subgrid;
     justify-content: stretch;
 }
@@ -134,18 +136,45 @@
     margin: 0;
 }
 
-.frog-carousel .frog-card > img {
+.frog-carousel .frog-card > .media-image {
     grid-row: 3;
+}
+
+.frog-carousel .frog-card > .media-image img {
     height: 100px;
 }
 
+.frog-carousel .reference-navigation { grid-row: 4; margin: 0; }
+
 .frog-carousel .reference-clips {
-    grid-row: 4;
-    align-self: start;
+    grid-row: 5;
+    align-self: stretch;
 }
 
-.frog-carousel .audio-clip > img {
+.frog-carousel .audio-clip { width: 100%; }
+.frog-carousel .reference-spectrogram-slot {
+    width: 100%;
     aspect-ratio: 2 / 1;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    min-width: 0;
+}
+.frog-carousel .reference-spectrogram-slot > .media-image {
+    position: relative;
+    width: 100%; height: 100%; min-height: 0;
+}
+.frog-carousel .reference-spectrogram-slot img {
+    display: block;
+    width: 100%; height: 100%; object-fit: contain;
+}
+.frog-carousel .reference-spectrogram-slot .media-loading {
+    position: absolute; top: 4px; left: 4px; right: 4px;
+    margin: 0; padding: 4px; background: #f5f8f3;
+}
+.frog-carousel .reference-spectrogram-placeholder {
+    background: #e8efe4; color: #52645b; font-size: .85rem;
+    padding: 8px; text-align: center;
 }
 
 /* Clip cards and explicit Yes / No / Unsure answers. */
@@ -255,7 +284,7 @@
     #frog-card .frog-card {
         grid-template-columns: minmax(0, 1fr);
     }
-    #frog-card .frog-card > img {
+    #frog-card .frog-card > .media-image img {
         display: none;
     }
     .navbar a {
@@ -293,11 +322,14 @@
 
 #frog-card .frog-card {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     text-align: left;
 }
 
-#frog-card .frog-card > img {
+#frog-card .frog-card > h3,
+#frog-card .frog-card > p { margin: 0; }
+
+#frog-card .frog-card > .media-image {
     display: none;
 }
 
@@ -321,7 +353,7 @@
 }
 
 .reference-spectrogram img,
-.results-list .audio-clip > img {
+.results-list .audio-clip > .media-image img {
     aspect-ratio: 2 / 1;
 }
 
@@ -388,4 +420,159 @@
     .results-list > li {
         scroll-margin-top: 260px;
     }
+}
+
+.media-loading { color: #52645b; font-size: 0.9rem; margin: 6px 0; }
+.target-media-status, .target-request-status {
+    padding: 12px 14px; margin: 10px 0; border: 1px solid #9aafbf;
+    border-radius: 6px; background: #e8f2fc; color: #183d60;
+}
+.target-media-status strong, .target-media-status span { display: block; }
+.target-media-status span { margin-top: 4px; font-size: .9rem; }
+.target-media-status.is-error { background: #fff3df; color: #694216; border-color: #c9a36b; }
+.target-media-status.is-loading strong::before, .target-request-status::before {
+    content: ""; display: inline-block; width: 14px; height: 14px;
+    margin-right: 8px; border: 2px solid currentColor; border-right-color: transparent;
+    border-radius: 50%; vertical-align: -2px; animation: reference-loading-spin .8s linear infinite;
+}
+@keyframes reference-loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+    .target-media-status.is-loading strong::before, .target-request-status::before { animation: none; }
+}
+
+.results-list .audio-clip .media-image img.generated-spectrogram {
+    aspect-ratio: auto;
+    height: auto;
+}
+
+.reference-navigation {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 4px 0;
+}
+
+.reference-navigation button {
+    margin: 0;
+    min-width: 44px;
+    min-height: 44px;
+}
+
+.reference-navigation button:disabled {
+    opacity: 0.4;
+}
+
+.reference-navigation-placeholder { visibility: hidden; pointer-events: none; }
+
+[hidden] { display: none !important; }
+#login-form { display: grid; gap: 12px; max-width: 420px; }
+.password-field { position: relative; }
+#annotator-password {
+    width: 100%; min-height: 44px; padding: 10px 52px 10px 12px;
+    border: 1px solid #829782; border-radius: 6px; font: inherit;
+}
+#annotator-password::-ms-reveal { display: none; }
+.annotate-card #toggle-password {
+    position: absolute; right: 2px; top: 50%; transform: translateY(-50%);
+    display: grid; place-items: center; width: 44px; height: 40px;
+    padding: 0; margin: 0; border: 0; border-radius: 4px;
+    background: transparent; color: #304d35;
+}
+#toggle-password:hover { background: #e8efe4; }
+#toggle-password:focus-visible { outline: 2px solid #304d35; outline-offset: -2px; }
+.annotator-bar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 16px;
+    margin: 16px 0 24px;
+    border: 1px solid #d6dfd6;
+    border-radius: 10px;
+    background: #f5f8f3;
+}
+
+.annotator-name-field {
+    flex: 1;
+    min-width: 0;
+    max-width: 420px;
+    display: grid;
+    gap: 6px;
+}
+
+.annotator-name-field label {
+    margin: 0;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+#annotator-name {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 44px;
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid #829782;
+    border-radius: 6px;
+    background: white;
+    color: #24372b;
+    font: inherit;
+}
+
+#logout-button {
+    flex-shrink: 0;
+    min-height: 44px;
+    margin: 0;
+    padding: 10px 16px;
+    border: 1px solid #829782;
+    border-radius: 6px;
+    background: transparent;
+    color: #304d35;
+    font: inherit;
+}
+
+#logout-button:hover { background: #e8efe4; }
+
+@media (max-width: 480px) {
+    .annotator-bar { flex-wrap: wrap; gap: 12px; }
+    .annotator-name-field { flex-basis: 100%; max-width: none; }
+    #logout-button { margin-left: auto; }
+}
+#login-error { color: #9a2424; }
+/* Keep the species totals readable on phones without widening the page. */
+#annotation-summary { margin: 1.5rem 0; }
+#annotation-summary > summary { cursor: pointer; padding: .5rem 0; }
+#annotation-summary > summary h2 { display: inline; }
+.summary-scroll { overflow-x: auto; max-height: 24rem; }
+#species-summary { width: 100%; border-collapse: collapse; }
+#species-summary caption { text-align: left; padding: .5rem 0; }
+#species-summary th, #species-summary td { padding: .55rem .75rem; border-bottom: 1px solid #ccd8cf; }
+#species-summary thead th { position: sticky; top: 0; background: #f1f6f0; z-index: 1; }
+#species-summary td { text-align: right; font-variant-numeric: tabular-nums; }
+#species-summary th:first-child { text-align: left; }
+#species-summary small { display: block; font-weight: normal; }
+#species-summary button { font: inherit; }
+#species-summary .summary-species { text-align: left; }
+#species-summary th[aria-sort="ascending"] button::after { content: " ↑"; }
+#species-summary th[aria-sort="descending"] button::after { content: " ↓"; }
+
+#annotator-workspace .audio-clip img { cursor: zoom-in; }
+body.spectrogram-preview-open { overflow: hidden; }
+.spectrogram-preview {
+    width: min(1400px, 96vw); max-width: 96vw; max-height: 92dvh;
+    padding: 24px; border: 1px solid #829782; border-radius: 10px;
+    background: #f5f8f3; color: #24372b; overflow: auto;
+}
+.spectrogram-preview::backdrop { background: rgb(0 0 0 / 75%); }
+.spectrogram-preview h2 { margin: 0 48px 20px 0; font-size: 1.1rem; overflow-wrap: anywhere; }
+.spectrogram-preview > img { display: block; width: 100%; max-height: 74dvh; object-fit: contain; }
+.spectrogram-preview-close {
+    position: absolute; top: 8px; right: 8px; width: 44px; height: 44px;
+    border: 1px solid #829782; border-radius: 6px; background: white;
+    color: #24372b; font-size: 28px; cursor: pointer;
+}
+.spectrogram-preview :focus-visible { outline: 3px solid #164c89; outline-offset: 2px; }
+@media (max-width: 480px) {
+    .spectrogram-preview { padding: 16px; }
 }

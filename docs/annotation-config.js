@@ -1,5 +1,5 @@
-// Select "demo" for CSV/static samples and browser-only saves.
+// Cloud API requests require the shared annotator password.
 window.annotationConfig = {
     provider: "server",
-    baseUrl: "http://127.0.0.1:8080/api",
+    baseUrl: "https://annotationservice-167659324212.us-south1.run.app",
 };
