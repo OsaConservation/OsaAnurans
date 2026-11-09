@@ -1,5 +1,7 @@
 """Verify opt-in counts and buffered annotation workflow locally with mocked API/media."""
 from functools import partial
+import hashlib
+import math
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 import threading
@@ -13,6 +15,17 @@ server = ThreadingHTTPServer(('127.0.0.1', 0), partial(QuietHandler, directory=s
 threading.Thread(target=server.serve_forever, daemon=True).start()
 base = f'http://127.0.0.1:{server.server_port}'
 state = {'summary': 0, 'pages': 0, 'posts': 0, 'refresh': 0, 'expire': False, 'fail': False, 'attempts': []}
+seeds = set()
+orders = {}
+
+def order_for_seed(seed):
+    if seed not in orders:
+        def priority(index):
+            bits = int.from_bytes(hashlib.sha256(f"{seed}:FROG:{index}".encode()).digest()[:8], 'big') & (2**52 - 1)
+            uniform = (bits + 0.5) / 2**52
+            return -math.log(uniform) * math.exp((index / 99) / 0.5)
+        orders[seed] = sorted(range(100), key=lambda index: (priority(index), index))
+    return orders[seed]
 species = {'species_id': 'FROG', 'scientific_name': 'Reference frog', 'common_name': 'Test frog'}
 
 def candidate(index):
@@ -53,10 +66,12 @@ try:
                     cursor = None
                 else:
                     state['pages'] += 1
+                    assert len(query.get('seed', [])) == 1
+                    seeds.add(query['seed'][0])
                     assert query['count'] == ['20']
                     start = int(query.get('cursor', ['0'])[0])
                     end = min(start + 20, 100)
-                    items = [candidate(i) for i in range(start, end)]
+                    items = [candidate(i) for i in order_for_seed(query['seed'][0])[start:end]]
                     cursor = str(end) if end < 100 else None
                 expiry = '2099-01-01T00:00:00Z' if 'candidate_id' in query else (datetime.now(timezone.utc) + timedelta(seconds=61 if state['pages'] == 1 else 900)).isoformat()
                 data = {'candidates': items, 'next_cursor': cursor, 'urls_expire_at': expiry}
@@ -80,6 +95,8 @@ try:
         page.locator('#login-button').click()
         expect(page.locator('.results-list > li')).to_have_count(5)
         assert state['summary'] == 0 and state['pages'] == 1
+        expected_order = order_for_seed(next(iter(seeds)))
+        assert expected_order != list(range(100))
         expect(page.locator('#species-summary')).to_be_hidden()
         page.locator('#annotator-name').fill('Local test')
         page.locator('.results-list input[value=yes]').first.check()
@@ -108,19 +125,25 @@ try:
         page.locator('#logout-button').click()
         page.locator('#annotator-password').fill('local-test-password')
         page.locator('#login-button').click()
-        expect(page.locator('.results-list h3').first).to_contain_text('ID: window-0')
+        expect(page.locator('.results-list h3').first).to_contain_text(f'ID: window-{expected_order[0]}')
         expect(page.locator('#status')).to_contain_text('Submit answered')
         assert state['pages'] == 1 and state['summary'] == 1
         # Twenty visible batches consume five API pages. Buffered Next remains available.
         for index in range(1, 20):
             page.get_by_role('button', name='Next batch', exact=True).click()
-            expect(page.locator('.results-list h3').first).to_contain_text(f'ID: window-{index * 5}')
+            expect(page.locator('.results-list h3').first).to_contain_text(f'ID: window-{expected_order[index * 5]}')
         expect(page.get_by_role('button', name='Next batch', exact=True)).to_be_disabled()
         assert state['pages'] == 5, state
+        assert len(seeds) == 1, seeds
         assert not errors, errors
         page.reload()
         expect(page.locator('#annotator-login')).to_be_visible()
         assert page.locator('#annotator-name').input_value() == ''
+        assert state['summary'] == 1
+        page.locator('#annotator-password').fill('local-test-password')
+        page.locator('#login-button').click()
+        expect(page.locator('.results-list > li')).to_have_count(5)
+        assert len(seeds) == 2, seeds
         assert state['summary'] == 1
         browser.close()
         print('PASS: zero automatic summary queries, explicit counts/staleness, exact manual retry, buffered 100 clips/5 page reads, exact media refresh, re-login keeps slice, fresh reload; no cloud writes')

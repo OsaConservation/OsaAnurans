@@ -1,8 +1,9 @@
 // One active species queue. API pages contain metadata only; media loads when rendered.
 export class CandidateQueue {
-    constructor(provider, speciesId) {
+    constructor(provider, speciesId, seed) {
         this.provider = provider;
         this.speciesId = speciesId;
+        this.seed = seed;
         this.buffer = [];
         this.cursor = null;
         this.started = false;
@@ -17,7 +18,7 @@ export class CandidateQueue {
         let cursor = this.cursor;
         let started = this.started;
         while (buffer.length < count && (!started || cursor !== null)) {
-            const page = await this.provider.getCandidates(this.speciesId, { count: 20, cursor, signal });
+            const page = await this.provider.getCandidates(this.speciesId, { count: 20, cursor, signal, seed: this.seed });
             buffer.push(...page.clips.map((clip) => ({ clip, expiresAt: page.urlsExpireAt })));
             if (page.nextCursor !== null && page.nextCursor === cursor) {
                 throw new Error("Candidate cursor did not advance. Restart this species.");

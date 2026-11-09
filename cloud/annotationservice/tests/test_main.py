@@ -16,6 +16,8 @@ import main as service
 import media as media_service
 from helpers import annotation_payload
 
+SEED = "11111111-1111-4111-8111-111111111111"
+
 
 class AnnotationServiceTests(unittest.TestCase):
     def setUp(self):
@@ -234,7 +236,7 @@ class AnnotationServiceTests(unittest.TestCase):
         created = datetime(2026, 1, 1, tzinfo=timezone.utc)
         rows = [SimpleNamespace(
             candidate_id=f'candidate_{i}', window_id=f'window_{i}',
-            query_species_id='DENEBR', score=0.1, created_at=created,
+            query_species_id='DENEBR', score=0.1, priority=0.1, created_at=created,
             recording_id='recording_1', audio_gcs_uri='gs://osa-frog-data/audio.mp3',
             start_seconds=i * 5, end_seconds=(i + 1) * 5, spectrogram_gcs_uri=None,
         ) for i in range(3)]
@@ -254,8 +256,8 @@ class AnnotationServiceTests(unittest.TestCase):
             self.assertEqual(body['candidates'][0]['audio_url'], 'signed')
             self.assertEqual(sign.call_count, 1)  # Shared audio signed once; null images skipped.
             self.assertEqual(first.headers['Cache-Control'], 'no-store')
-            cutoff, after_score, after_id = service.candidates.decode_cursor(body['next_cursor'], 'DENEBR')
-            self.assertEqual((after_score, after_id), (0.1, 'candidate_1'))
+            cutoff, after_priority, after_id, seed = service.candidates.decode_cursor(body['next_cursor'], 'DENEBR')
+            self.assertEqual((after_priority, after_id), (0.1, 'candidate_1'))
             second = self.http.get('/candidates', query_string={
                 'species_id': 'DENEBR', 'count': '2', 'cursor': body['next_cursor']})
         self.assertEqual(second.status_code, 200)
@@ -265,10 +267,10 @@ class AnnotationServiceTests(unittest.TestCase):
         config = client.query.call_args.kwargs['job_config']
         params = {p.name: p.value for p in config.query_parameters}
         self.assertEqual(params['cutoff'], cutoff)
-        self.assertEqual(params['after_score'], 0.1)
+        self.assertEqual(params['after_priority'], 0.1)
         self.assertEqual(params['after_id'], 'candidate_1')
         self.assertEqual(params['fetch_count'], 3)
-        self.assertIn('ORDER BY c.score ASC, c.candidate_id ASC', client.query.call_args.args[0])
+        self.assertIn('ORDER BY priority ASC, candidate_id ASC', client.query.call_args.args[0])
         self.assertNotIn('.recordings`', client.query.call_args.args[0])
         self.assertIn('c.audio_gcs_uri', client.query.call_args.args[0])
 
@@ -278,7 +280,7 @@ class AnnotationServiceTests(unittest.TestCase):
                                    'urls_expire_at': 'unused'}
         self.assertEqual(self.http.get('/candidates?species_id=DENEBR').status_code, 200)
         self.assertEqual(candidates.call_args.args[1], 15)
-        self.assertEqual(candidates.call_args.args[3:], (None, None))
+        self.assertEqual(candidates.call_args.args[3:5], (None, None))
 
     def test_full_final_candidate_page_has_no_cursor(self):
         # Exactly count rows means no additional page, even for a full batch.
@@ -291,7 +293,7 @@ class AnnotationServiceTests(unittest.TestCase):
                 patch.object(media_service, 'get_signing_context'), \
                 patch.object(media_service, 'sign_media_uri', return_value='signed'):
             client.return_value.query.return_value.result.return_value = [row]
-            body = service.candidates.get_candidates('DENEBR', 1, datetime.now(timezone.utc), None, None)
+            body = service.candidates.get_candidates('DENEBR', 1, datetime.now(timezone.utc), None, None, SEED)
         self.assertIsNone(body['next_cursor'])
 
     @patch.object(media_service, 'get_signing_context')
@@ -319,23 +321,23 @@ class AnnotationServiceTests(unittest.TestCase):
                       'species_id=X&cursor=bad', 'species_id=X&cursor=']:
             with self.subTest(query=query):
                 self.assertEqual(self.http.get('/candidates?' + query).status_code, 400)
-        row = SimpleNamespace(score=0.1, candidate_id='one')
-        token = service.candidates.encode_cursor('DENEBR', datetime.now(timezone.utc), row)
+        row = SimpleNamespace(score=0.1, priority=0.1, candidate_id='one')
+        token = service.candidates.encode_cursor('DENEBR', datetime.now(timezone.utc), row, SEED)
         self.assertEqual(self.http.get('/candidates', query_string={
             'species_id': 'AGACAL', 'cursor': token}).status_code, 400)
         get_client.assert_not_called()
 
     @patch.object(service.settings, 'get_client')
     def test_invalid_cursor_types_dates_and_text_do_not_query(self, client):
-        valid = {'v': 2, 'species_id': 'DENEBR', 'cutoff': '2026-01-02T00:00:00+00:00',
-                 'score': 0.1, 'candidate_id': 'one'}
+        valid = {'v': 3, 'seed': SEED, 'temperature': 0.5, 'species_id': 'DENEBR', 'cutoff': '2026-01-02T00:00:00+00:00',
+                 'priority': 0.1, 'candidate_id': 'one'}
         invalid = [None, [], True, {**valid, 'v': True}, {**valid, 'v': 1},
                    {**valid, 'cutoff': '0001-01-01T00:00:00+01:00'},
                    {**valid, 'cutoff': '2026-01-01'},
                    {**valid, 'cutoff': '9999-01-01T00:00:00+00:00'},
-                   {**valid, 'score': float('nan')}, {**valid, 'score': float('inf')},
-                   {**valid, 'score': -0.1}, {**valid, 'score': 1.1},
-                   {**valid, 'score': True}, {**valid, 'score': '0.1'},
+                   {**valid, 'priority': float('nan')}, {**valid, 'priority': float('inf')},
+                   {**valid, 'priority': -0.1}, {**valid, 'priority': 0},
+                   {**valid, 'priority': True}, {**valid, 'priority': '0.1'},
                    {**valid, 'candidate_id': 'a\ud800b'},
                    {**valid, 'candidate_id': 'a\x00b'}]
         for data in invalid:
@@ -352,14 +354,33 @@ class AnnotationServiceTests(unittest.TestCase):
         client.assert_not_called()
 
     def test_cursor_offset_is_normalized_to_utc(self):
-        data = {'v': 2, 'species_id': 'DENEBR', 'cutoff': '2026-01-02T05:30:00+05:30',
-                'score': 0.0, 'candidate_id': 'one'}
+        data = {'v': 3, 'seed': SEED, 'temperature': 0.5, 'species_id': 'DENEBR', 'cutoff': '2026-01-02T05:30:00+05:30',
+                'priority': 0.01, 'candidate_id': 'one'}
         token = base64.urlsafe_b64encode(json.dumps(data).encode()).decode().rstrip('=')
-        cutoff, score, candidate_id = service.candidates.decode_cursor(token, 'DENEBR')
+        cutoff, priority, candidate_id, seed = service.candidates.decode_cursor(token, 'DENEBR')
         self.assertEqual(cutoff, datetime(2026, 1, 2, tzinfo=timezone.utc))
-        self.assertEqual(score, 0.0)
+        self.assertEqual(priority, 0.01)
+        self.assertEqual(seed, SEED)
         self.assertIs(cutoff.tzinfo, timezone.utc)
         self.assertEqual(candidate_id, 'one')
+
+    @patch.object(service.settings, 'get_client')
+    def test_sampling_seed_is_validated_and_bound_to_cursor_before_queries(self, client):
+        for suffix in ['seed=', 'seed=bad', 'seed=' + 'a'*100,
+                       'seed=' + SEED + '&seed=' + SEED]:
+            self.assertEqual(self.http.get('/candidates?species_id=DENEBR&' + suffix).status_code, 400)
+        row = SimpleNamespace(priority=0.12345678912345, candidate_id='one')
+        token = service.candidates.encode_cursor('DENEBR', datetime.now(timezone.utc), row, SEED)
+        self.assertEqual(self.http.get('/candidates', query_string={
+            'species_id':'DENEBR', 'cursor':token,
+            'seed':'22222222-2222-4222-8222-222222222222'}).status_code, 400)
+        client.assert_not_called()
+        from werkzeug.datastructures import MultiDict
+        parsed = service.candidates.parse_candidate_request(MultiDict([
+            ('species_id','DENEBR'),('cursor',token),('seed',SEED)]))
+        self.assertEqual(parsed[3:], (row.priority, 'one', SEED))
+        first = service.candidates.parse_candidate_request(MultiDict([('species_id','DENEBR'),('seed',SEED)]))
+        self.assertEqual(first[-1], SEED)
 
     @patch.object(service.catalog, 'get_references', side_effect=RuntimeError('private signing details'))
     def test_signing_failure_returns_generic_error_with_cors(self, _):

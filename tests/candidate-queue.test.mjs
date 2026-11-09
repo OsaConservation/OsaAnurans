@@ -100,3 +100,38 @@ test("exact-ID refresh preserves questions/order and rejects missing, duplicate,
         await assert.rejects(api.refreshCandidateMedia(batch));
     }
 });
+
+test("one page seed survives queue restarts, species changes, pagination, and failed retries", async () => {
+    const seed = "11111111-1111-4111-8111-111111111111";
+    const calls = [];
+    let fail = true;
+    const api = { getCandidates: async (species, options) => {
+        calls.push({ species, ...options });
+        if (fail) { fail = false; throw new Error("offline"); }
+        return { clips: Array.from({ length: 20 }, (_, i) => ({ id: `${species}-${options.cursor || 'first'}-${i}` })),
+            nextCursor: options.cursor ? null : "next", urlsExpireAt: "2099-01-01T00:00:00Z" };
+    } };
+    const queue = new CandidateQueue(api, "FROG", seed);
+    await assert.rejects(queue.next(20), /offline/);
+    await queue.next(20);
+    await queue.next(20);
+    await new CandidateQueue(api, "OTHER", seed).next(5);
+    await new CandidateQueue(api, "FROG", seed).next(7);
+    assert.ok(calls.every((call) => call.seed === seed));
+    assert.deepEqual(calls.slice(0, 3).map((call) => call.cursor), [null, null, "next"]);
+});
+
+test("server provider preserves sampling seed in first requests, retries, and cursor resets", async () => {
+    const paths = [];
+    const seed = "11111111-1111-4111-8111-111111111111";
+    const api = new ServerProvider("https://example.com", null, {
+        request: async (path) => {
+            paths.push(new URL(path, "https://example.com"));
+            return { ok: true, json: async () => ({ candidates: [], next_cursor: null, urls_expire_at: "2099-01-01T00:00:00Z" }) };
+        },
+    });
+    await api.getCandidates("FROG", { seed, cursor: "old", restartIfEmpty: true });
+    assert.equal(paths.length, 2);
+    assert.ok(paths.every((path) => path.searchParams.get("seed") === seed));
+    assert.equal(paths[1].searchParams.has("cursor"), false);
+});

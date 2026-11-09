@@ -143,9 +143,9 @@ there is no Firestore dependency.
 
 ### `GET /candidates?species_id=DENEBR&count=15`
 
-Returns a page of candidates with signed full-recording audio URLs and window
-playback offsets. Required: one nonempty `species_id`. Optional: `count`, an
-integer from 1 to 20 (default 15), and `cursor` from a previous response.
+Returns a page of candidates with signed standalone-window audio URLs and
+playback bounds of 0-5 seconds. Required: one nonempty `species_id`. Optional: `count`, an
+integer from 1 to 20 (default 15), a UUID `seed`, and `cursor` from a previous response.
 Repeated parameters and invalid counts/cursors return 400. Unknown species and
 species with no candidates both return 200 with an empty list and a null cursor.
 Each batch uses one query; there is no separate species-existence lookup.
@@ -175,11 +175,11 @@ Each batch uses one query; there is no separate species-existence lookup.
 
 Pass `next_cursor` as `cursor` to fetch the next page for the same species.
 An actual exhausted response uses JSON null, not the string above. Ordering is
-ascending `(score, candidate_id)`; smaller scores receive review priority.
+ascending weighted random `(priority, candidate_id)`; lower scores receive larger weights.
 The first request fixes a creation-time cutoff, carried through subsequent
 pages. Candidates created after that cutoff appear in a new session. This is
 not a database snapshot: backdated inserts, deletes, or edits can change pages.
-Keep published candidate IDs, scores, and creation times immutable. Cursor format is v2; old cursors return 400 and require restarting from the first batch. Cursor tokens are
+Keep published candidate IDs, scores, and creation times immutable. Cursor format is v3; old cursors return 400 and require restarting from the first batch. Cursor tokens are
 validated, species-bound continuation data, not signed authorization tokens.
 All candidate reads require a reviewer token and remain bounded and parameterized regardless of cursor.
 
@@ -293,3 +293,19 @@ not automatically fetch counts. Submissions mark any previously loaded totals st
 Before deploying this service, backfill candidate media/source fields with the app's
 `structs/migrate_candidate_media.sql`. The API response contract remains compatible
 with the old website. The updated website must be tested locally before deployment.
+
+
+### Weighted candidate ordering
+
+The current score is queue rank. Each page-load seed defines a deterministic weighted
+ordering across the entire eligible species queue: `weight=exp(-score/0.5)` and
+`priority=-ln(u)/weight`. Lower priority is served first, without replacement while
+paging an unchanged queue. No annotation lookup or reservation is added.
+
+The browser sends one UUID `seed` per page load and reuses it for species changes,
+slider resets, retries, and pagination. Reload starts a fresh order. If omitted on a
+first request, the server generates a seed and carries it in the cursor. A conflicting
+seed on continuation is rejected. Temperature is fixed server-side. Cursors bind seed,
+species, cutoff, temperature, and the last priority/ID; old v2 cursors require restart.
+Exact-ID media refresh remains independent of ordering. Concurrent queue replacement
+can still change the remaining pages; the cutoff is not a database snapshot.

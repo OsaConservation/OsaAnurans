@@ -1,11 +1,11 @@
-import { CandidateQueue } from "./candidate-queue.mjs";
+import { CandidateQueue } from "./candidate-queue.mjs?v=weighted-sampling-1";
 import { createSubmission } from "./annotation-submission.mjs";
 import { createAnnotationSummary } from "./annotation-summary.mjs?v=query-efficiency-1";
 import { installSpectrogramPreview } from "./spectrogram-preview.mjs";
 ﻿import { element } from "./annotation-dom.mjs";
 import { renderReferences, sound } from "./reference-media.mjs?v=reference-spectrogram-1";
 import { candidatePlayer } from "./candidate-player.mjs?v=reference-spectrogram-1";
-import { CandidateCursorError, createProvider } from "./annotation-data.mjs?v=query-efficiency-1";
+import { CandidateCursorError, createProvider } from "./annotation-data.mjs?v=weighted-sampling-1";
 
 // Page controls. All reads and saves go through the configured data provider.
 
@@ -26,6 +26,8 @@ let candidateRequest;
 let mediaRefreshAttempted = false;
 let candidateRefresh;
 let candidateQueue;
+// Reload creates a new ordering; species switches, slider changes, and retries reuse it.
+const samplingSeed = crypto.randomUUID();
 let retryAction;
 let referenceRefresh;
 
@@ -219,7 +221,7 @@ async function loadSpecies(id, count = Number(batchSize.value)) {
     }
     updateProgress();
 
-    const queue = cloudMode ? new CandidateQueue(provider, id) : null;
+    const queue = cloudMode ? new CandidateQueue(provider, id, samplingSeed) : null;
     try {
         const [references, nextBatch] = await Promise.all([
             provider.getReferenceSounds(id),

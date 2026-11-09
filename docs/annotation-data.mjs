@@ -188,9 +188,10 @@ export class ServerProvider {
         return response.json();
     }
 
-    async getCandidates(speciesId, { count = 15, cursor, signal, restartIfEmpty = false } = {}) {
+    async getCandidates(speciesId, { count = 15, cursor, signal, seed, restartIfEmpty = false } = {}) {
         const query = new URLSearchParams({ species_id: speciesId, count: String(count) });
         if (cursor != null) query.set("cursor", cursor);
+        if (seed != null) query.set("seed", seed);
 
         let data;
         try {
@@ -207,7 +208,7 @@ export class ServerProvider {
 
         // A saved cursor can outlive the candidate queue it came from.
         if (restartIfEmpty && cursor != null && !data.candidates.length) {
-            return this.getCandidates(speciesId, { count, signal });
+            return this.getCandidates(speciesId, { count, signal, seed });
         }
 
         const clips = data.candidates.map((item) => parseCandidate(item, speciesId));

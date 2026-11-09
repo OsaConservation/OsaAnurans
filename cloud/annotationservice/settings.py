@@ -11,6 +11,8 @@ DATASET_ID = 'osafrogdataset'
 LOCATION = 'us-south1'
 MAX_SPECIES_IDS = 52
 MAX_CANDIDATES = 20
+# Weight lower queue ranks more heavily; changing this invalidates sampling cursors.
+SAMPLING_TEMPERATURE = 0.5
 MAXIMUM_BYTES_BILLED = 100_000_000
 # The parameter-only annotation INSERT does not scan existing tables.
 MAX_ANNOTATION_BYTES_BILLED = 100_000_000
