@@ -110,11 +110,7 @@ def _cached_artifact(
     Returns:
     - True if reusable; False if missing/corrupt so the caller can rebuild.
     """
-    rows = [
-        row
-        for row in catalog.embedding_rows(config_id)
-        if row.recording_id == recording.recording_id
-    ]
+    rows = catalog.embedding_rows(config_id, recording_id=recording.recording_id)
     if len(rows) != expected:
         return False
     # This importer writes one matrix in source-window order. Check every

@@ -56,6 +56,8 @@ class Catalog:
                 path TEXT PRIMARY KEY,
                 recording_id TEXT NOT NULL REFERENCES recordings
             );
+            CREATE INDEX IF NOT EXISTS windows_by_recording
+                ON windows(recording_id, start_sample);
             INSERT OR IGNORE INTO recording_paths(path, recording_id)
                 SELECT path, recording_id FROM recordings;
         """)
@@ -294,19 +296,26 @@ class Catalog:
         rows = self.connection.execute("SELECT * FROM windows ORDER BY recording_id, start_sample")
         return [self._window(row) for row in rows]
 
-    def embedding_rows(self, config_id: str) -> list[EmbeddingRow]:
+    def embedding_rows(
+        self, config_id: str, *, recording_id: str | None = None
+    ) -> list[EmbeddingRow]:
         """Find vector file/row locations for one embedding configuration.
 
         Returns:
         - EmbeddingRow records ordered by recording ID and window start sample.
         - File contents stay on disk; this reads only SQLite metadata.
+        - Optional recording_id limits the query to one recording.
         """
-        rows = self.connection.execute(
+        query = (
             "SELECT e.*, w.recording_id FROM window_embeddings e "
-            "JOIN windows w USING(window_id) WHERE config_id=? "
-            "ORDER BY w.recording_id, w.start_sample",
-            (config_id,),
+            "JOIN windows w USING(window_id) WHERE config_id=?"
         )
+        parameters = [config_id]
+        if recording_id is not None:
+            query += " AND w.recording_id=?"
+            parameters.append(recording_id)
+        query += " ORDER BY w.recording_id, w.start_sample"
+        rows = self.connection.execute(query, parameters)
         return [
             EmbeddingRow(
                 r["window_id"],

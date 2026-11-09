@@ -38,6 +38,33 @@ def test_artifact_registration_and_bidirectional_mapping(tmp_path, artifact):
         assert len(catalog.embedding_rows("second-config")) == 2
 
 
+def test_embedding_rows_can_filter_by_recording(tmp_path, artifact):
+    recording, windows, array_path, audio_paths = artifact
+    other = replace(recording, recording_id="other", content_hash="other-hash")
+    other_windows = [
+        replace(window, window_id=f"other-{window.window_id}", recording_id="other")
+        for window in windows
+    ]
+    other_array = tmp_path / "other.npy"
+    other_array.write_bytes(array_path.read_bytes())
+    with Catalog(tmp_path / "catalog.sqlite") as catalog:
+        for record, selected, path in [
+            (recording, windows, array_path),
+            (other, other_windows, other_array),
+        ]:
+            catalog.add_recording(record)
+            catalog.register_artifact(selected, "config", path, audio_paths)
+        catalog.register_artifact(windows, "second-config", array_path, audio_paths)
+        all_rows = catalog.embedding_rows("config")
+        assert len(all_rows) == 4
+        for recording_id in ("r", "other"):
+            assert catalog.embedding_rows("config", recording_id=recording_id) == [
+                row for row in all_rows if row.recording_id == recording_id
+            ]
+        assert catalog.embedding_rows("config", recording_id="missing") == []
+        assert catalog.embedding_rows("missing", recording_id="r") == []
+
+
 def test_recording_aliases_resolve_csv_labels_and_survive_reopening(tmp_path, artifact):
     recording, _, _, _ = artifact
     alias = replace(recording, path=tmp_path / "copy.wav")
