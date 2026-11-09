@@ -331,7 +331,10 @@ def test_missing_local_window_audio_triggers_only_affected_recording_rebuild(
     assert missing.is_file()
 
 
-@pytest.mark.parametrize("corruption", ["empty-wav", "short-wav", "empty-embedding"])
+@pytest.mark.parametrize(
+    "corruption",
+    ["empty-wav", "short-wav", "empty-embedding", "row-index", "row-path", "row-swap"],
+)
 def test_invalid_cached_artifact_rebuilds_only_affected_recording(
     local_config, monkeypatch, corruption
 ):
@@ -340,11 +343,35 @@ def test_invalid_cached_artifact_rebuilds_only_affected_recording(
     with Catalog(local_config.artifacts / "catalog.sqlite") as catalog:
         row = catalog.embedding_rows(TinyBackend.config_id)[0]
         audio = catalog.audio_path(row.window_id)
+        if corruption in {"row-index", "row-path"}:
+            other = catalog.embedding_rows(TinyBackend.config_id)[1]
+            column, value = (
+                ("row_index", 99)
+                if corruption == "row-index"
+                else ("path", str(local_config.artifacts / "missing.npy"))
+            )
+            with catalog.connection:
+                catalog.connection.execute(
+                    f"UPDATE window_embeddings SET {column}=? WHERE window_id=?",
+                    (value, other.window_id),
+                )
+        elif corruption == "row-swap":
+            other = catalog.embedding_rows(TinyBackend.config_id)[1]
+            with catalog.connection:
+                for window_id, index in [
+                    (row.window_id, 99),
+                    (other.window_id, 0),
+                    (row.window_id, 1),
+                ]:
+                    catalog.connection.execute(
+                        "UPDATE window_embeddings SET row_index=? WHERE window_id=?",
+                        (index, window_id),
+                    )
     if corruption == "empty-wav":
         audio.write_bytes(b"")
     elif corruption == "short-wav":
         sf.write(audio, np.zeros(100), SAMPLE_RATE, subtype="FLOAT")
-    else:
+    elif corruption == "empty-embedding":
         count = len(np.load(row.path))
         np.save(row.path, np.empty((count, 0), dtype=np.float32))
     backend = TinyBackend()
@@ -352,6 +379,25 @@ def test_invalid_cached_artifact_rebuilds_only_affected_recording(
     assert backend.embed_calls == 1
     assert sf.info(audio).frames == WINDOW_SAMPLES
     assert np.load(row.path).shape[1] == 2
+    with Catalog(local_config.artifacts / "catalog.sqlite") as catalog:
+        repaired = [
+            item
+            for item in catalog.embedding_rows(TinyBackend.config_id)
+            if item.recording_id == row.recording_id
+        ]
+        assert [item.row_index for item in repaired] == [0, 1, 2]
+        assert {item.path for item in repaired} == {row.path}
+
+
+def test_import_accepts_whitespace_around_annotation_filenames(local_config):
+    path = local_config.annotations_csv
+    rows = list(csv.DictReader(path.read_text().splitlines()))
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows({**row, "audiofilename": f" {row['audiofilename']} "} for row in rows)
+    snapshot = import_local(local_config, backend=TinyBackend())
+    assert len(load_snapshot(snapshot)) == 10
 
 
 @pytest.mark.parametrize("multi_positive", [False, True])

@@ -595,6 +595,26 @@ def test_upload_failure_leaves_metadata_untouched_and_retry_reuses_audio(setup, 
     assert len(storage.objects) == 2
 
 
+@pytest.mark.parametrize("supplied", ["bq", "storage"])
+def test_partial_cloud_client_injection_is_preserved(setup, monkeypatch, supplied):
+    config, path, _, expected_bq, expected_storage = setup
+
+    def connect(config_arg, bq=None, storage=None):
+        assert config_arg is config
+        assert bq is (expected_bq if supplied == "bq" else None)
+        assert storage is (expected_storage if supplied == "storage" else None)
+        return expected_bq, expected_storage
+
+    monkeypatch.setattr("osa_anurans_app.src.publish.check_cloud_access", connect)
+    species.add_species(
+        config,
+        species.load_manifest(path),
+        backend=TinyBackend(),
+        **{supplied: expected_bq if supplied == "bq" else expected_storage},
+    )
+    assert expected_bq.commits == 1
+
+
 def test_frozen_audio_is_revalidated_before_padding_can_hide_an_edit(setup, monkeypatch):
     config, path, audio, bq, storage = setup
     original = species.validate_audio

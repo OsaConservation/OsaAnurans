@@ -19,7 +19,7 @@ def annotation_audio_paths(
     - Relative filename: try the CSV directory and every configured audio root.
     - Return candidates only; existence and ambiguity are checked by callers.
     """
-    relative = Path(filename.replace("\\", "/"))
+    relative = Path(filename.strip().replace("\\", "/"))
     if relative.is_absolute():
         return {relative.resolve()}
     return {(root / relative).resolve() for root in (csv_directory, *roots)}

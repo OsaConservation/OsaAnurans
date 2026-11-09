@@ -8,6 +8,20 @@ from osa_anurans_app.src.cloud import bigquery, storage
 from osa_anurans_app.src.config import AppConfig
 
 
+@pytest.mark.parametrize("field", ["epochs", "batch_size"])
+@pytest.mark.parametrize("value", ["1.5", "true", "0", "-1"])
+def test_toml_rejects_invalid_training_counts_before_work(tmp_path, field, value):
+    from osa_anurans_app.src.config import load_config
+
+    path = tmp_path / "config.toml"
+    path.write_text(
+        f"[paths]\naudio_roots = ['.']\n[training]\n{field} = {value}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match=field):
+        load_config(path)
+
+
 @pytest.mark.parametrize("interactive", [False, True])
 def test_annotation_refresh_never_creates_or_checks_gcs(tmp_path, monkeypatch, interactive):
     config = AppConfig((tmp_path,), tmp_path / "annotations.csv", tmp_path / "artifacts")

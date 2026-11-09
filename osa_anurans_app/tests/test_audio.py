@@ -72,6 +72,31 @@ def test_window_audio_is_immutable_and_ids_ignore_path_and_embedding_model(tmp_p
     assert source.read_bytes() == before
 
 
+@pytest.mark.parametrize("source_rate", [22_050, 44_100, 48_000])
+@pytest.mark.parametrize("offset", [-1, 0, 1])
+def test_resampled_windows_match_source_bounds_at_five_second_boundary(
+    tmp_path, source_rate, offset
+):
+    from bacpipe import AudioHandler
+
+    path = tmp_path / "boundary.wav"
+    samples = np.linspace(-0.2, 0.2, source_rate * 5 + offset, dtype=np.float32)
+    sf.write(path, samples, source_rate, subtype="FLOAT")
+    model = SimpleNamespace(
+        sr=SAMPLE_RATE,
+        segment_length=WINDOW_SAMPLES,
+        model_name="perch_v2",
+        only_embed_annotations=False,
+        device="cpu",
+        preprocess=lambda frames: frames,
+    )
+    frames = AudioHandler(model=model, audio_dir=tmp_path, padding="wrap").prepare_audio(path)
+    windows = recording_windows(identify_recording(path))
+    assert frames.shape == (len(windows), WINDOW_SAMPLES)
+    assert len(windows) == (2 if offset > 0 else 1)
+    assert all(window.end_sample - window.start_sample == 5 * source_rate for window in windows)
+
+
 def test_checkpoint_download_is_pinned_verified_and_retryable(tmp_path, monkeypatch):
     import huggingface_hub
     from osa_anurans_app.src import bacpipe_adapter

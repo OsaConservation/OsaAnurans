@@ -1,3 +1,4 @@
+import sqlite3
 from dataclasses import replace
 
 import numpy as np
@@ -57,6 +58,37 @@ def test_recording_aliases_resolve_csv_labels_and_survive_reopening(tmp_path, ar
     with Catalog(path) as catalog:
         labels = read_interval_labels(csv_path, catalog.recording_aliases(), (tmp_path,))
         assert [label.recording_id for label in labels] == ["r", "r"]
+
+
+def test_reregistering_artifact_can_change_its_row_order(tmp_path, artifact):
+    recording, windows, array_path, audio_paths = artifact
+    with Catalog(tmp_path / "catalog.sqlite") as catalog:
+        catalog.add_recording(recording)
+        catalog.register_artifact(windows, "config", array_path, audio_paths)
+        catalog.register_artifact(windows[::-1], "config", array_path, audio_paths[::-1])
+        assert [(row.window_id, row.row_index) for row in catalog.embedding_rows("config")] == [
+            ("w0", 1),
+            ("w1", 0),
+        ]
+
+
+def test_failed_reregistration_restores_all_previous_mappings(tmp_path, artifact):
+    recording, windows, array_path, audio_paths = artifact
+    with Catalog(tmp_path / "catalog.sqlite") as catalog:
+        catalog.add_recording(recording)
+        for config_id in ["config", "other"]:
+            catalog.register_artifact(windows, config_id, array_path, audio_paths)
+        original = catalog.embedding_rows("config")
+        other = catalog.embedding_rows("other")
+        catalog.connection.executescript("""
+            CREATE TRIGGER fail_registration BEFORE INSERT ON window_embeddings
+            WHEN NEW.window_id='w0' AND NEW.config_id='config'
+            BEGIN SELECT RAISE(ABORT, 'injected write failure'); END;
+        """)
+        with pytest.raises(sqlite3.IntegrityError, match="injected write failure"):
+            catalog.register_artifact(windows[::-1], "config", array_path, audio_paths[::-1])
+        assert catalog.embedding_rows("config") == original
+        assert catalog.embedding_rows("other") == other
 
 
 def test_changed_path_moves_alias_without_overwriting_old_content_identity(tmp_path, artifact):

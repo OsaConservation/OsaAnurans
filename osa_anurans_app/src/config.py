@@ -106,13 +106,12 @@ def validate_config(config: AppConfig) -> None:
         raise ValueError("prefix must be a relative GCS object prefix")
     if config.device not in {"auto", "cpu", "cuda"}:
         raise ValueError("device must be auto, cpu, or cuda")
-    if (
-        config.epochs < 1
-        or config.batch_size < 1
-        or not math.isfinite(config.learning_rate)
-        or config.learning_rate <= 0
-    ):
-        raise ValueError("epochs, batch_size, and learning_rate must be positive")
+    for name in ("epochs", "batch_size"):
+        value = getattr(config, name)
+        if type(value) is not int or value < 1:
+            raise ValueError(f"{name} must be a positive integer")
+    if not math.isfinite(config.learning_rate) or config.learning_rate <= 0:
+        raise ValueError("learning_rate must be finite and positive")
     if not 0 < config.test_fraction < 1:
         raise ValueError("test_fraction must be between zero and one")
     if type(config.candidates_per_species) is not int or config.candidates_per_species < 1:

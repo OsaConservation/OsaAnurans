@@ -117,6 +117,14 @@ def _cached_artifact(
     ]
     if len(rows) != expected:
         return False
+    # This importer writes one matrix in source-window order. Check every
+    # mapping before trusting its first file as the recording's cached matrix.
+    windows = recording_windows(recording)
+    if any(
+        row.window_id != window.window_id or row.row_index != index or row.path != rows[0].path
+        for index, (row, window) in enumerate(zip(rows, windows, strict=True))
+    ):
+        return False
     try:
         array = np.load(rows[0].path, mmap_mode="r", allow_pickle=False)
         return (

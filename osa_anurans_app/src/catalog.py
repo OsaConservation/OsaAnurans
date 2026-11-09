@@ -199,6 +199,12 @@ class Catalog:
         self._validate_artifact(windows, config_id, path, audio_paths)
         path = path.resolve()
         with self.connection:
+            # Release the selected rows together so a repaired/reordered mapping
+            # cannot collide with another selected window's previous location.
+            self.connection.executemany(
+                "DELETE FROM window_embeddings WHERE window_id=? AND config_id=?",
+                ((window.window_id, config_id) for window in windows),
+            )
             for index, (window, audio_path) in enumerate(zip(windows, audio_paths)):
                 self.connection.execute(
                     "INSERT INTO windows (window_id, recording_id, start_sample, end_sample, "
@@ -215,9 +221,7 @@ class Catalog:
                     ),
                 )
                 self.connection.execute(
-                    "INSERT INTO window_embeddings VALUES (?, ?, ?, ?) "
-                    "ON CONFLICT(window_id, config_id) DO UPDATE SET "
-                    "path=excluded.path, row_index=excluded.row_index",
+                    "INSERT INTO window_embeddings VALUES (?, ?, ?, ?)",
                     (window.window_id, config_id, str(path), index),
                 )
 

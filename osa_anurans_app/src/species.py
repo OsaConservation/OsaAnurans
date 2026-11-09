@@ -330,7 +330,7 @@ def add_species(config, manifest: SpeciesManifest, *, backend=None, bq=None, sto
         if bq is None or storage is None:
             from .publish import check_cloud_access
 
-            bq, storage = check_cloud_access(config)
+            bq, storage = check_cloud_access(config, bq=bq, storage=storage)
         with storage.publication_lock():
             _selected_inputs(config)
             verify_inputs(manifest)
