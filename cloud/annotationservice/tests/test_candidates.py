@@ -90,7 +90,7 @@ class CandidateTests(unittest.TestCase):
             self.assertIn('@after_score IS NULL', query)
             self.assertIn('c.score = @after_score AND c.candidate_id > @after_id', query)
             self.assertIn('c.created_at <= @cutoff', query)
-            self.assertIn('w.audio_gcs_uri', query)
+            self.assertIn('c.audio_gcs_uri', query)
             self.assertNotIn('.recordings`', query)
             self.assertNotIn('c.created_at >', query)
 
@@ -109,6 +109,19 @@ class CandidateTests(unittest.TestCase):
             token = candidates.encode_cursor('DENEBR', datetime(2026, 1, 2, tzinfo=timezone.utc),
                                              candidate(score=value))
             self.assertEqual(candidates.decode_cursor(token, 'DENEBR')[1], value)
+
+
+    def test_exact_id_refresh_reads_one_table_and_returns_only_remaining_ids(self):
+        rows = [candidate('one')]
+        with patch.object(candidates.settings, 'read_rows', return_value=rows) as read, \
+                patch.object(candidates.media, 'MediaUrls', MediaUrls):
+            data = candidates.refresh_candidate_media('DENEBR', ['one', 'removed'])
+        self.assertEqual([item['candidate_id'] for item in data['candidates']], ['one'])
+        self.assertIsNone(data['next_cursor'])
+        query, parameters = read.call_args.args
+        self.assertNotIn('JOIN', query)
+        self.assertIn('.candidates`', query)
+        self.assertEqual(parameters[1].values, ['one', 'removed'])
 
 
 if __name__ == '__main__':

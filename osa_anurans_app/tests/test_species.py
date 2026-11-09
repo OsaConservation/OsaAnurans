@@ -27,7 +27,7 @@ FIELDS = {
     "species": "species_id scientific_name common_name",
     "reference_media": "reference_id species_id audio_gcs_uri spectrogram_gcs_uri",
     "recordings": "recording_id",
-    "windows": "window_id recording_id start_seconds end_seconds audio_gcs_uri",
+    "windows": "window_id recording_id start_seconds end_seconds",
     "annotations": "annotation_id window_id candidate_id query_species_id response annotator_id annotator_name submission_id created_at",
 }
 
@@ -201,7 +201,7 @@ def test_add_and_retry_preserve_votes_timestamps_and_complete_snapshot(setup):
     second = run(setup)
     assert second != first
     assert bq.tables == original
-    assert len(storage.objects) == 2
+    assert len(storage.objects) == 1
     with Catalog(config.artifacts / "catalog.sqlite") as catalog:
         assert len(catalog.embedding_rows(TinyBackend.config_id)) == 1
         assert not catalog.pending_windows()
@@ -295,7 +295,7 @@ def test_failure_retry_is_add_only(setup, monkeypatch, stage):
         old_snapshot
     )
     assert len(bq.tables["annotations"]) == (0 if stage == "transaction" else 1)
-    assert len(storage.objects) == 2
+    assert len(storage.objects) == 1
     if stage == "registration":
         monkeypatch.setattr(Catalog, "mark_registered", original)
     bq.fail = bq.refresh_fail = False
@@ -557,7 +557,7 @@ def test_prior_import_csv_snapshot_is_rechecked_when_add_executes(setup, monkeyp
         cli.execute_workflow(workflow, config)
 
 
-def test_cleanup_protection_retains_seed_and_reference_audio(setup):
+def test_cleanup_removes_seed_window_audio_but_retains_reference(setup):
     from osa_anurans_app.src.publish import cleanup_cloud_audio
 
     config, _, _, bq, storage = setup
@@ -571,28 +571,29 @@ def test_cleanup_protection_retains_seed_and_reference_audio(setup):
         actual.upload_reference(
             "SMIPHA", reference["reference_id"], catalog.audio_path(window.window_id)
         )
-        bq.protected_window_ids = lambda: {window.window_id}
+        bq.protected_window_ids = lambda: set()
+        bq.reference_audio_uris = lambda: {reference["audio_gcs_uri"]}
         bq.storage_usage = lambda: {"logical_bytes": 0}
         cleanup_cloud_audio(config, catalog, bq, actual)
-        assert len([blob for blob in storage_client.blobs.values() if blob.data]) == 2
+        assert len([blob for blob in storage_client.blobs.values() if blob.data]) == 1
 
 
 def test_upload_failure_leaves_metadata_untouched_and_retry_reuses_audio(setup, monkeypatch):
     _, _, _, bq, storage = setup
-    original = storage.upload_window
+    original = storage.upload_reference
 
     def fail(*args):
         raise RuntimeError("upload failed")
 
-    monkeypatch.setattr(storage, "upload_window", fail)
+    monkeypatch.setattr(storage, "upload_reference", fail)
     with pytest.raises(RuntimeError, match="upload failed"):
         run(setup)
     assert all(not rows for rows in bq.tables.values())
-    assert len(storage.objects) == 1
-    monkeypatch.setattr(storage, "upload_window", original)
+    assert len(storage.objects) == 0
+    monkeypatch.setattr(storage, "upload_reference", original)
     run(setup)
     assert len(bq.tables["annotations"]) == 1
-    assert len(storage.objects) == 2
+    assert len(storage.objects) == 1
 
 
 @pytest.mark.parametrize("supplied", ["bq", "storage"])

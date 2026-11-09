@@ -117,7 +117,7 @@ The SQLite `window_embeddings` table is local only and maps a window/config to a
 `.npy` file and row. An embedding-model change does not itself change window ID.
 An import refuses to overwrite an existing waveform with different samples:
 preprocessing changes need an extraction-policy version change. Every generated
-window has local audio; cloud synchronization later adds its required GCS URI.
+window has local audio. Cloud media URIs belong to published candidates, not windows.
 
 Completed compatible artifacts are reused. Missing audio rebuilds its recording;
 interrupted work is retryable. Do not run concurrent imports into one artifact
@@ -203,7 +203,7 @@ check covering uploads, metadata, replacement SQL, API pagination, and submissio
 See VALIDATION.md; those temporary cloud fixtures were removed afterward.
 
 `cleanup` removes only canonical `<window_id>.wav` objects under the configured
-window prefix with neither a current candidate nor any annotation, including unsure.
+window prefix without a current candidate or reference. Annotation-only clips are removed.
 It also finds GCS-only orphans left by interrupted uploads. References, local
 WAVs/embeddings, and BigQuery recordings/windows/annotations are preserved.
 Progress shows removed clips and bytes; `cloud-cleanup.json` records standalone
@@ -212,9 +212,10 @@ After cleanup, the console also shows GCS active/soft-deleted storage and BigQue
 logical table storage in decimal GB. Totals are saved in the cleanup report.
 BigQuery metadata can lag recent writes; this is stored table data, not query usage.
 
-Cleanup uses a snapshot of current references, with no grace period. An old browser
-batch can submit an annotation after deletion. Later publication or cleanup repairs
-missing protected clips when their local audio is available. GCS soft-deleted bytes
+Cleanup uses the current candidate queue, with no grace period. Historical answers
+train from local embeddings and do not retain cloud audio. An old browser batch may
+lose media after queue replacement; its answers can still be submitted. Missing
+current candidate clips are repaired when local audio is available. GCS soft-deleted bytes
 remain until the bucket's retention period expires; cleanup does not change that policy.
 
 Uploads and cleanup share a create-only GCS lock so they cannot overlap across
@@ -282,7 +283,8 @@ as the input format:
 - Reviewed input changes stop the workflow. Source files are never edited.
 
 The action saves local embeddings and exact model-input WAVs. Cloud audio goes to
-`references/<species>/<reference>.wav` and `<configured window prefix>/<window>.wav`.
+`references/<species>/<reference>.wav`. Seed window clips stay local until selected
+as candidates; adding a reference does not upload a redundant window copy.
 Existing references are reused after comparing their audio; their IDs, URIs, and
 spectrograms are preserved. When a reference has no spectrogram URL, the website
 generates one from its audio using the same renderer as candidate spectrograms.
@@ -309,3 +311,21 @@ Menu combinations:
 - **Add species**: prepare references, upload metadata/seed votes, refresh labels.
 - **Add species + Train**: also generate a new local candidate run.
 - **Add species + Train + Upload**: also publish that new candidate run.
+
+
+### Candidate media schema cutover
+
+The new app requires media/source fields on candidates and metadata-only windows.
+Do not run cloud writers against the old schema. Pause publication, cleanup,
+add-species, and seed scripts until the cutover is complete:
+
+1. Run `structs/migrate_candidate_media.sql` to snapshot tables and backfill candidates.
+2. Check actual selected GCS objects, repairing missing clips before cleanup.
+3. Deploy the updated API and install the updated app, keeping cloud writers paused.
+4. Run `structs/drop_window_media.sql` after checking the backfill and API responses.
+5. Resume writers; enable cleanup only after checking the current queue/media.
+
+Saved local selection JSONL files remain supported. Publication creates a separate
+`candidate-upload.jsonl` with verified audio URIs and copied source metadata.
+Rollback after column removal requires restoring the window columns/data from the
+snapshot before running old code. Keep cleanup disabled during rollback.

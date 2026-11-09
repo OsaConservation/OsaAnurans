@@ -43,7 +43,7 @@ class Catalog:
                 recording_id TEXT NOT NULL REFERENCES recordings,
                 start_sample INTEGER NOT NULL, end_sample INTEGER NOT NULL,
                 sample_rate INTEGER NOT NULL, policy TEXT NOT NULL,
-                audio_path TEXT, audio_gcs_uri TEXT,
+                audio_path TEXT,
                 registered INTEGER NOT NULL DEFAULT 0
             );
             CREATE TABLE IF NOT EXISTS window_embeddings (
@@ -196,7 +196,7 @@ class Catalog:
 
         Rules:
         - Row order must match window/audio order.
-        - Existing GCS URI and registration state are preserved.
+        - Existing metadata registration state is preserved.
         """
         self._validate_artifact(windows, config_id, path, audio_paths)
         path = path.resolve()
@@ -355,25 +355,11 @@ class Catalog:
         )
         return [self._window(row) for row in rows]
 
-    def mark_uploaded(self, window_id: str, uri: str) -> None:
-        """Store a successful upload's gs:// URI without marking BigQuery ready."""
-        if not uri.startswith("gs://") or not all(uri[5:].partition("/")[::2]):
-            raise ValueError("Uploaded audio needs a gs://bucket/object URI")
+    def mark_registered(self, window_id: str) -> None:
+        """Mark window metadata registered in BigQuery, independently of cloud audio."""
         with self.connection:
             updated = self.connection.execute(
-                "UPDATE windows SET audio_gcs_uri=? WHERE window_id=?", (uri, window_id)
+                "UPDATE windows SET registered=1 WHERE window_id=?", (window_id,)
             )
             if not updated.rowcount:
                 raise ValueError(f"Unknown window: {window_id}")
-
-    def mark_registered(self, window_id: str) -> None:
-        """Mark BigQuery registration complete; require an existing GCS audio URI."""
-        with self.connection:
-            updated = self.connection.execute(
-                "UPDATE windows SET registered=1 WHERE window_id=? AND audio_gcs_uri LIKE 'gs://%/%'",
-                (window_id,),
-            )
-            if not updated.rowcount:
-                raise ValueError(
-                    f"Window must have uploaded audio before registration: {window_id}"
-                )

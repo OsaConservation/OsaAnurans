@@ -201,18 +201,12 @@ def test_existing_window_identity_cannot_change_policy(tmp_path, artifact):
         assert catalog.windows() == windows
 
 
-def test_registration_requires_cloud_audio_and_unknown_windows_fail(tmp_path, artifact):
+def test_registration_does_not_require_audio_and_unknown_windows_fail(tmp_path, artifact):
     recording, windows, array_path, audio_paths = artifact
     with Catalog(tmp_path / "catalog.sqlite") as catalog:
         catalog.add_recording(recording)
         catalog.register_artifact(windows, "config", array_path, audio_paths)
-        with pytest.raises(ValueError, match="uploaded audio"):
-            catalog.mark_registered("w0")
-        for uri in ["file:///clip.wav", "gs://bucket", "gs:///clip.wav"]:
-            with pytest.raises(ValueError, match="gs://"):
-                catalog.mark_uploaded("w0", uri)
         with pytest.raises(ValueError, match="Unknown window"):
-            catalog.mark_uploaded("missing", "gs://bucket/clip.wav")
-        catalog.mark_uploaded("w0", "gs://bucket/w0.wav")
+            catalog.mark_registered("missing")
         catalog.mark_registered("w0")
         assert [window.window_id for window in catalog.pending_windows()] == ["w1"]

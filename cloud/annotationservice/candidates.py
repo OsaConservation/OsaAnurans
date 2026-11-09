@@ -80,10 +80,9 @@ def parse_candidate_request(args):
 def _read_candidate_rows(species_id, count, cutoff, after_score, after_id):
     query = f'''
         SELECT c.candidate_id, c.window_id, c.query_species_id, c.created_at, c.score,
-               w.start_seconds, w.end_seconds, w.spectrogram_gcs_uri,
-               w.recording_id, w.audio_gcs_uri
+               c.recording_start_seconds AS start_seconds, c.recording_end_seconds AS end_seconds,
+               c.spectrogram_gcs_uri, c.recording_id, c.audio_gcs_uri
         FROM `{PROJECT_ID}.{DATASET_ID}.candidates` c
-        JOIN `{PROJECT_ID}.{DATASET_ID}.windows` w USING (window_id)
         WHERE c.query_species_id = @species_id AND c.created_at <= @cutoff
           AND (@after_score IS NULL OR c.score > @after_score
                OR (c.score = @after_score AND c.candidate_id > @after_id))
@@ -136,3 +135,33 @@ def get_candidates(species_id, count, cutoff, after_score, after_id):
         'next_cursor': next_cursor,
         'urls_expire_at': urls.expires_at.isoformat(),
     }
+
+
+def parse_media_refresh(args):
+    """Refresh exact questions without moving a pagination cursor."""
+    if set(args) - {'species_id', 'candidate_id'} or len(args.getlist('species_id')) != 1:
+        raise ValueError('Supply species_id and candidate_id only for media refresh')
+    species = args.get('species_id', '').strip()
+    ids = args.getlist('candidate_id')
+    if not 1 <= len(species) <= 128 or not species.isprintable():
+        raise ValueError('Provide one nonempty species_id')
+    if not 1 <= len(ids) <= MAX_CANDIDATES or len(set(ids)) != len(ids):
+        raise ValueError('Provide between 1 and 20 unique candidate IDs')
+    return species, [_candidate_id(value) for value in ids]
+
+
+def refresh_candidate_media(species_id, candidate_ids):
+    query = f"""
+        SELECT candidate_id, window_id, query_species_id, created_at, score,
+               recording_start_seconds AS start_seconds, recording_end_seconds AS end_seconds,
+               spectrogram_gcs_uri, recording_id, audio_gcs_uri
+        FROM `{PROJECT_ID}.{DATASET_ID}.candidates`
+        WHERE query_species_id = @species_id AND candidate_id IN UNNEST(@candidate_ids)
+    """
+    rows = settings.read_rows(query, [
+        bigquery.ScalarQueryParameter('species_id', 'STRING', species_id),
+        bigquery.ArrayQueryParameter('candidate_ids', 'STRING', candidate_ids),
+    ])
+    urls = media.MediaUrls()
+    return {'candidates': [_candidate_payload(row, urls) for row in rows],
+            'next_cursor': None, 'urls_expire_at': urls.expires_at.isoformat()}

@@ -2,7 +2,6 @@
 
 import json
 from copy import copy
-from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -34,6 +33,18 @@ def candidate(window_id="w", species="A", candidate_id="c"):
         "score": 0.2,
         "selection_method": "uncertainty",
     }
+
+
+def upload_candidate(*args, **kwargs):
+    row = candidate(*args, **kwargs)
+    return dict(
+        row,
+        recording_id="r",
+        recording_start_seconds=0,
+        recording_end_seconds=5,
+        audio_gcs_uri=f"gs://osa-frog-data/windows/v1/{row['window_id']}.wav",
+        spectrogram_gcs_uri=None,
+    )
 
 
 def write_candidates(tmp_path, rows):
@@ -109,7 +120,7 @@ class BigQueryClient:
 def test_candidate_load_failure_never_replaces_existing(config, tmp_path):
     client = BigQueryClient()
     client.load_error = RuntimeError("load failed")
-    path = write_candidates(tmp_path, [candidate()])
+    path = write_candidates(tmp_path, [upload_candidate()])
     with pytest.raises(RuntimeError, match="load failed"):
         BigQueryStore(config, client).replace_candidates(path, 1, "run")
     assert client.current[0]["candidate_id"] == "old"
@@ -119,9 +130,9 @@ def test_candidate_load_failure_never_replaces_existing(config, tmp_path):
 @pytest.mark.parametrize(
     "rows",
     [
-        [candidate(), candidate()],
-        [candidate(window_id="missing")],
-        [candidate(species="missing")],
+        [upload_candidate(), upload_candidate()],
+        [upload_candidate(window_id="missing")],
+        [upload_candidate(species="missing")],
     ],
 )
 def test_staging_validation_failure_preserves_current_candidates(config, tmp_path, rows):
@@ -137,15 +148,15 @@ def test_successful_replacement_and_commit_failure(config, tmp_path):
     client = BigQueryClient()
     store = BigQueryStore(config, client)
     rows = [
-        candidate(),
-        dict(candidate(species="B", candidate_id="c2"), selection_method="similarity"),
+        upload_candidate(),
+        dict(upload_candidate(species="B", candidate_id="c2"), selection_method="similarity"),
     ]
     path = write_candidates(tmp_path, rows)
     store.replace_candidates(path, 2, "run")
     assert client.current == rows
     assert client.deleted
     client.commit_error = RuntimeError("transaction aborted")
-    write_candidates(tmp_path, [candidate(candidate_id="new")])
+    write_candidates(tmp_path, [upload_candidate(candidate_id="new")])
     with pytest.raises(RuntimeError, match="transaction aborted"):
         store.replace_candidates(path, 1, "next-run")
     assert client.current == rows
@@ -166,7 +177,7 @@ def test_successful_replacement_and_commit_failure(config, tmp_path):
     ],
 )
 def test_invalid_candidates_rejected_before_cloud_access(config, tmp_path, mutate):
-    row = candidate()
+    row = upload_candidate()
     mutate(row)
     client = BigQueryClient()
     with pytest.raises(ValueError, match="Invalid candidate"):
@@ -275,7 +286,6 @@ class Catalog:
     def __init__(self, path):
         self.window = WindowRecord("w", "r", 0, 5, 1)
         self.path = path
-        self.uploaded = []
         self.registered = set()
 
     def pending_windows(self):
@@ -290,10 +300,6 @@ class Catalog:
     def audio_path(self, window_id):
         return self.path
 
-    def mark_uploaded(self, window_id, uri):
-        self.uploaded.append((window_id, uri))
-        self.window = replace(self.window, audio_gcs_uri=uri)
-
     def mark_registered(self, window_id):
         self.registered.add(window_id)
 
@@ -304,9 +310,13 @@ class MetadataStore:
         self.rows = []
         self.published = False
         self.protected = set()
+        self.references = set()
 
     def protected_window_ids(self):
         return self.protected
+
+    def reference_audio_uris(self):
+        return self.references
 
     def storage_usage(self):
         return {"logical_bytes": 1000}
@@ -315,7 +325,7 @@ class MetadataStore:
         return {}
 
     def upsert_windows(self, recordings, windows):
-        assert all(window.audio_gcs_uri for window in windows)
+        assert all(not hasattr(window, "audio_gcs_uri") for window in windows)
         if self.fail:
             raise RuntimeError("metadata unavailable")
         self.rows.extend(windows)
@@ -334,7 +344,7 @@ def test_sync_resumes_upload_after_metadata_failure_independent_of_training(conf
     storage = StorageStore(config, storage_client)
     with pytest.raises(RuntimeError, match="metadata unavailable"):
         sync_windows(config, catalog, bq, storage, window_ids={"w"})
-    assert catalog.uploaded
+    assert storage_client.blobs["windows/v1/w.wav"].data == path.read_bytes()
     assert not catalog.registered
     bq.fail = False
     assert sync_windows(config, catalog, bq, storage, window_ids={"w"}) == 1
@@ -496,11 +506,11 @@ def test_cleanup_protects_referenced_clips_and_removes_gcs_only_orphans(config, 
     assert bq.rows == []  # No metadata rows were removed or rewritten.
 
 
-def test_protected_ids_query_includes_all_species_and_unsure_answers(config):
+def test_protected_ids_query_reads_only_current_candidates(config):
     class Client:
         def query(self, sql, **kwargs):
-            assert "UNION DISTINCT" in sql
-            assert "annotations" in sql and "candidates" in sql
+            assert "annotations" not in sql and "candidates" in sql
+            assert "DISTINCT" in sql
             assert "WHERE" not in sql and "JOIN" not in sql
             return Job([{"window_id": CLIP_A}, {"window_id": CLIP_B}])
 
@@ -593,7 +603,7 @@ def test_cleanup_retry_uses_new_queue_without_republishing(config, tmp_path, mon
     assert json.loads(manifest.read_text())["state"] == "complete"
 
 
-def test_late_annotation_can_be_repaired_from_local_audio(config, tmp_path, monkeypatch):
+def test_current_candidate_can_be_repaired_from_local_audio(config, tmp_path, monkeypatch):
     client = StorageClient()
     storage = StorageStore(config, client)
     path = add_clip(storage, tmp_path, CLIP_A)
@@ -602,15 +612,9 @@ def test_late_annotation_can_be_repaired_from_local_audio(config, tmp_path, monk
     catalog.registered.add(CLIP_A)
     bq = MetadataStore()
     bq.fail = False
-    original = storage.delete_window_audio
-
-    def late_answer(window_id, blob):
-        bq.protected.add(window_id)  # Arrives after the last protection snapshot.
-        return original(window_id, blob)
-
-    monkeypatch.setattr(storage, "delete_window_audio", late_answer)
     cleanup_cloud_audio(config, catalog, bq, storage)
     assert f"windows/v1/{CLIP_A}.wav" not in client.blobs
+    bq.protected.add(CLIP_A)  # New queue needs a previously removed clip.
     cleanup_cloud_audio(config, catalog, bq, storage)
     assert client.blobs[f"windows/v1/{CLIP_A}.wav"].data == path.read_bytes()
     assert catalog.registered == {CLIP_A}
@@ -697,3 +701,80 @@ def test_usage_reporting_failure_does_not_fail_completed_cleanup(
     assert "gcs" in result["storage_usage"]
     assert "bigquery" not in result["storage_usage"]
     assert "storage usage unavailable" in caplog.text
+
+
+def test_publication_enriches_a_copy_without_changing_saved_selection(config, tmp_path):
+    audio = tmp_path / "w.wav"
+    audio.write_bytes(b"window audio")
+    catalog = Catalog(audio)
+    catalog.window = WindowRecord("w", "r", 30, 35, 1)
+    bq = MetadataStore()
+    bq.fail = False
+    selection = write_candidates(tmp_path, [candidate()])
+    original = selection.read_bytes()
+    captured = []
+
+    def replace_queue(path, count, run):
+        validate_candidates(path, count, published=True)
+        captured.extend(json.loads(line) for line in path.read_text().splitlines())
+
+    bq.replace_candidates = replace_queue
+    publish_candidates(
+        config, catalog, selection, 1, "run", bq, StorageStore(config, StorageClient())
+    )
+    assert selection.read_bytes() == original
+    assert captured == [
+        dict(
+            candidate(),
+            recording_id="r",
+            recording_start_seconds=30,
+            recording_end_seconds=35,
+            audio_gcs_uri="gs://osa-frog-data/windows/v1/w.wav",
+            spectrogram_gcs_uri=None,
+        )
+    ]
+
+
+def test_cleanup_deletes_annotation_only_audio_but_keeps_reference_inside_window_prefix(
+    config, tmp_path
+):
+    client = StorageClient()
+    storage = StorageStore(config, client)
+    for key in [CLIP_A, CLIP_B, CLIP_C]:
+        add_clip(storage, tmp_path, key)
+    bq = MetadataStore()
+    bq.protected = {CLIP_A}  # Current candidate; CLIP_C is annotation-only.
+    bq.references = {f"gs://{config.bucket}/windows/v1/{CLIP_B}.wav"}
+    result = cleanup_cloud_audio(config, Catalog(tmp_path / "unused"), bq, storage)
+    assert result["removed_clips"] == 1
+    assert set(client.blobs) == {f"windows/v1/{CLIP_A}.wav", f"windows/v1/{CLIP_B}.wav"}
+
+
+def test_annotation_refresh_reads_only_answers(config):
+    class Client:
+        def query(self, sql, **kwargs):
+            assert sql == "SELECT * FROM `osaanurans.osafrogdataset.annotations`"
+            return Job([{"window_id": "w", "query_species_id": "A", "response": "present"}])
+
+    assert BigQueryStore(config, Client()).fetch_annotations()[0]["window_id"] == "w"
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"recording_start_seconds": float("nan")},
+        {"recording_end_seconds": 6},
+        {"recording_id": ""},
+        {"audio_gcs_uri": "gs://other/windows/v1/w.wav"},
+        {"spectrogram_gcs_uri": "gs://other/image.png"},
+    ],
+)
+def test_bad_enriched_candidate_never_loads_or_replaces(config, tmp_path, changes):
+    row = dict(upload_candidate(), **changes)
+    client = BigQueryClient()
+    with pytest.raises(ValueError):
+        BigQueryStore(config, client).replace_candidates(
+            write_candidates(tmp_path, [row]), 1, "run"
+        )
+    assert client.loads == 0
+    assert client.current[0]["candidate_id"] == "old"

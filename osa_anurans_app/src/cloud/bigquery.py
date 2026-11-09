@@ -20,7 +20,16 @@ CANDIDATE_COLUMNS = (
 )
 
 
-def validate_candidates(path: Path, expected_count: int) -> None:
+MEDIA_COLUMNS = (
+    "recording_id",
+    "recording_start_seconds",
+    "recording_end_seconds",
+    "audio_gcs_uri",
+    "spectrogram_gcs_uri",
+)
+
+
+def validate_candidates(path: Path, expected_count: int, *, published: bool = False) -> None:
     """Validate a local candidate file before any table replacement.
 
     Checks:
@@ -43,7 +52,9 @@ def validate_candidates(path: Path, expected_count: int) -> None:
         for count, line in enumerate(stream, 1):
             try:
                 row = json.loads(line)
-                if not isinstance(row, dict) or set(row) != set(CANDIDATE_COLUMNS):
+                if not isinstance(row, dict) or set(row) != set(
+                    CANDIDATE_COLUMNS + MEDIA_COLUMNS if published else CANDIDATE_COLUMNS
+                ):
                     raise ValueError("Unexpected candidate fields")
                 for field in CANDIDATE_COLUMNS[:3]:
                     if not isinstance(row[field], str) or not row[field]:
@@ -55,6 +66,8 @@ def validate_candidates(path: Path, expected_count: int) -> None:
                     raise ValueError("Score must be finite and between zero and one")
                 if row["selection_method"] not in ("similarity", "uncertainty"):
                     raise ValueError("selection_method must be similarity or uncertainty")
+                if published:
+                    _validate_candidate_media(row)
                 timestamp = datetime.fromisoformat(row["created_at"].replace("Z", "+00:00"))
                 if timestamp.utcoffset() is None:
                     raise ValueError("Candidate timestamp must include a timezone")
@@ -62,6 +75,26 @@ def validate_candidates(path: Path, expected_count: int) -> None:
                 raise ValueError(f"Invalid candidate on line {count}: {exc}") from exc
     if count != expected_count:
         raise ValueError(f"Expected {expected_count} candidates, found {count}")
+
+
+def _validate_candidate_media(row: dict) -> None:
+    """Validate copied source bounds and media fields before staging."""
+    start, end = row["recording_start_seconds"], row["recording_end_seconds"]
+    if any(
+        isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v)
+        for v in (start, end)
+    ):
+        raise ValueError("Invalid candidate source bounds")
+    if start < 0 or not math.isclose(end - start, 5, abs_tol=1e-6, rel_tol=0):
+        raise ValueError("Candidate source bounds must span five seconds")
+    if not isinstance(row["recording_id"], str) or not row["recording_id"]:
+        raise ValueError("Missing candidate recording ID")
+    for field in ("audio_gcs_uri", "spectrogram_gcs_uri"):
+        uri = row[field]
+        if field == "spectrogram_gcs_uri" and uri is None:
+            continue
+        if not isinstance(uri, str) or not uri.startswith("gs://") or not uri[5:].partition("/")[2]:
+            raise ValueError(f"Invalid {field}")
 
 
 def _bigquery():
@@ -114,35 +147,22 @@ class BigQueryStore:
         list(self._query("SELECT 1 AS accessible"))
 
     def fetch_annotations(self) -> list[dict]:
-        """Read all annotator answers with matching window metadata when available.
-
-        Rules:
-        - LEFT JOIN windows so an answer survives missing metadata.
-        - Do not join candidates; replacing that table must not hide old answers.
-        - Return raw votes; majority counting happens in annotations.py.
-        """
-        # Historical annotations must survive replacement of the candidate table.
-        query = f"""
-            SELECT a.*, w.recording_id, w.start_seconds, w.end_seconds,
-                   w.audio_gcs_uri
-            FROM {self._table("annotations")} AS a
-            LEFT JOIN {self._table("windows")} AS w USING (window_id)
-        """
-        return [dict(row) for row in self._query(query)]
+        """Read raw votes/provenance; training locates vectors by window ID locally."""
+        return [dict(row) for row in self._query(f"SELECT * FROM {self._table('annotations')}")]
 
     def protected_window_ids(self) -> set[str]:
-        """Keep audio referenced by any current candidate or annotation, across species.
-
-        - Include unsure answers; no vote or consensus filtering.
-        - Do not join windows: references still protect clips if metadata is missing.
-        """
+        """Protect current candidates only; annotations do not require cloud audio."""
         return {
             row["window_id"]
-            for row in self._query(f"""
-                SELECT window_id FROM {self._table("candidates")}
-                UNION DISTINCT
-                SELECT window_id FROM {self._table("annotations")}
-            """)
+            for row in self._query(f"SELECT DISTINCT window_id FROM {self._table('candidates')}")
+        }
+
+    def reference_audio_uris(self) -> set[str]:
+        """Protect reference copies, including any historical references in the window prefix."""
+        return {
+            row["audio_gcs_uri"]
+            for row in self._query(f"SELECT audio_gcs_uri FROM {self._table('reference_media')}")
+            if row["audio_gcs_uri"]
         }
 
     def storage_usage(self) -> dict[str, int]:
@@ -203,14 +223,14 @@ class BigQueryStore:
         """Insert missing recording/window rows without replacing existing metadata.
 
         Steps:
-        1. Validate unique IDs, source bounds, recording metadata, and GCS URIs.
+        1. Validate unique IDs, source bounds, and recording metadata.
         2. Load the batch into a temporary staging table.
         3. Reject conflicts with existing window metadata inside a transaction.
         4. MERGE missing recording and window rows; preserve existing rows.
         5. Delete the staging table after the query, including on query failure.
 
         Boundaries:
-        - GCS audio must already be uploaded by the caller.
+        - Window registration is independent of media upload.
         - SQL avoids normal retry duplicates; BigQuery has no enforced unique key.
         """
         if not windows:
@@ -219,8 +239,6 @@ class BigQueryStore:
         if len({window.window_id for window in windows}) != len(windows):
             raise ValueError("Duplicate window IDs in metadata upload")
         for window in windows:
-            if not window.audio_gcs_uri or not window.audio_gcs_uri.startswith("gs://"):
-                raise ValueError(f"Window requires a GCS audio URI: {window.window_id}")
             if window.recording_id not in recording_ids:
                 raise ValueError(f"Recording metadata missing for {window.window_id}")
             if window.sample_rate <= 0 or window.end_sample <= window.start_sample:
@@ -234,7 +252,6 @@ class BigQueryStore:
             api.SchemaField("recording_id", "STRING", mode="REQUIRED"),
             api.SchemaField("start_seconds", "FLOAT64", mode="REQUIRED"),
             api.SchemaField("end_seconds", "FLOAT64", mode="REQUIRED"),
-            api.SchemaField("audio_gcs_uri", "STRING", mode="REQUIRED"),
         ]
         rows = [
             {
@@ -242,7 +259,6 @@ class BigQueryStore:
                 "recording_id": window.recording_id,
                 "start_seconds": window.start_seconds,
                 "end_seconds": window.end_seconds,
-                "audio_gcs_uri": window.audio_gcs_uri,
             }
             for window in windows
         ]
@@ -256,8 +272,6 @@ class BigQueryStore:
                     WHERE t.recording_id != s.recording_id
                        OR ABS(t.start_seconds - s.start_seconds) > 0.000001
                        OR ABS(t.end_seconds - s.end_seconds) > 0.000001
-                       OR t.audio_gcs_uri IS NULL
-                       OR t.audio_gcs_uri != s.audio_gcs_uri
                 ) AS 'Existing window metadata conflicts with local window';
                 MERGE {self._table("recordings")} AS t
                 USING (SELECT DISTINCT recording_id FROM {self._table(stage)}) AS s
@@ -266,10 +280,9 @@ class BigQueryStore:
                 MERGE {self._table("windows")} AS t
                 USING {self._table(stage)} AS s ON t.window_id = s.window_id
                 WHEN NOT MATCHED THEN INSERT
-                    (window_id, recording_id, start_seconds, end_seconds, audio_gcs_uri)
+                    (window_id, recording_id, start_seconds, end_seconds)
                 VALUES
-                    (s.window_id, s.recording_id, s.start_seconds, s.end_seconds,
-                     s.audio_gcs_uri);
+                    (s.window_id, s.recording_id, s.start_seconds, s.end_seconds);
                 COMMIT TRANSACTION;
             """)
         finally:
@@ -281,7 +294,7 @@ class BigQueryStore:
         Steps:
         1. Validate the local file and load a uniquely named staging table.
         2. Set a one-day expiry for failed/abandoned staging data.
-        3. In one transaction, check count, unique IDs/pairs, window audio, and species.
+        3. In one transaction, check count, unique IDs/pairs, source metadata, and species.
         4. Truncate candidates and insert the validated rows, then commit.
         5. Delete staging after success; retain failed query staging for diagnosis.
 
@@ -289,20 +302,39 @@ class BigQueryStore:
         - Validation/query failure before commit preserves the previous queue.
         - Existing annotations and windows remain unchanged.
         """
-        validate_candidates(path, expected_count)
+        validate_candidates(path, expected_count, published=True)
+        with path.open(encoding="utf-8") as stream:
+            for line in stream:
+                row = json.loads(line)
+                expected_uri = f"gs://{self.config.bucket}/{self.config.prefix.rstrip('/')}/{row['window_id']}.wav"
+                if row["audio_gcs_uri"] != expected_uri:
+                    raise ValueError(
+                        "Candidate audio must use its configured canonical window path"
+                    )
+                spectrogram = row["spectrogram_gcs_uri"]
+                if spectrogram is not None and not spectrogram.startswith(
+                    f"gs://{self.config.bucket}/"
+                ):
+                    raise ValueError("Candidate spectrogram must use the configured bucket")
         api = _bigquery()
         if not run_id:
             raise ValueError("A publication run ID is required")
         # Each attempt owns its staging table, even when the same run is retried.
         stage = f"_candidate_upload_{uuid4().hex}"
         destination = f"{self.dataset}.{stage}"
+        field_types = {
+            "score": "FLOAT64",
+            "created_at": "TIMESTAMP",
+            "recording_start_seconds": "FLOAT64",
+            "recording_end_seconds": "FLOAT64",
+        }
         schema = [
             api.SchemaField(
                 name,
-                "FLOAT64" if name == "score" else "TIMESTAMP" if name == "created_at" else "STRING",
-                mode="REQUIRED",
+                field_types.get(name, "STRING"),
+                mode="NULLABLE" if name == "spectrogram_gcs_uri" else "REQUIRED",
             )
-            for name in CANDIDATE_COLUMNS
+            for name in CANDIDATE_COLUMNS + MEDIA_COLUMNS
         ]
         options = api.LoadJobConfig(
             schema=schema,
@@ -336,9 +368,10 @@ class BigQueryStore:
             ASSERT NOT EXISTS (
                 SELECT 1 FROM {self._table(stage)} AS s
                 LEFT JOIN {self._table("windows")} AS w USING (window_id)
-                WHERE w.window_id IS NULL OR w.audio_gcs_uri IS NULL
-                   OR NOT STARTS_WITH(w.audio_gcs_uri, 'gs://')
-            ) AS 'Candidate window audio missing';
+                WHERE w.window_id IS NULL OR w.recording_id != s.recording_id
+                   OR ABS(w.start_seconds - s.recording_start_seconds) > 0.000001
+                   OR ABS(w.end_seconds - s.recording_end_seconds) > 0.000001
+            ) AS 'Candidate window metadata missing or conflicting';
             ASSERT NOT EXISTS (
                 SELECT 1 FROM {self._table(stage)} AS s
                 LEFT JOIN {self._table("species")} AS p
@@ -347,8 +380,8 @@ class BigQueryStore:
             ) AS 'Candidate species missing';
             TRUNCATE TABLE {self._table("candidates")};
             INSERT INTO {self._table("candidates")}
-                ({", ".join(CANDIDATE_COLUMNS)})
-            SELECT {", ".join(CANDIDATE_COLUMNS)} FROM {self._table(stage)};
+                ({", ".join(CANDIDATE_COLUMNS + MEDIA_COLUMNS)})
+            SELECT {", ".join(CANDIDATE_COLUMNS + MEDIA_COLUMNS)} FROM {self._table(stage)};
             COMMIT TRANSACTION;
         """,
             [parameter],

@@ -9,11 +9,11 @@ from settings import DATASET_ID, MAX_SPECIES_IDS, PROJECT_ID
 
 def parse_species_request(args):
     filters = []
-    for name in ('has_audio', 'has_candidates'):
+    for name in ('has_audio', 'has_candidates', 'include_counts'):
         values = args.getlist(name)
         if values and (len(values) != 1 or values[0] not in ('true', 'false')):
             raise ValueError(f'{name} must be true or false, supplied once')
-        filters.append(bool(values and values[0] == 'true'))
+        filters.append(values[0] == 'true' if values else name == 'include_counts')
     return tuple(filters)
 
 
@@ -26,7 +26,7 @@ def parse_reference_request(args):
     return (list(dict.fromkeys(value.strip() for value in values)),)
 
 
-def get_species(has_audio=False, has_candidates=False):
+def get_species(has_audio=False, has_candidates=False, include_counts=True):
     # EXISTS keeps one species row even when it has multiple reference clips.
     filters = []
     if has_audio:
@@ -39,42 +39,43 @@ def get_species(has_audio=False, has_candidates=False):
         # Match candidate windows that have playable audio; keep one species row.
         filters.append(f'''EXISTS (
             SELECT 1 FROM `{PROJECT_ID}.{DATASET_ID}.candidates` c
-            JOIN `{PROJECT_ID}.{DATASET_ID}.windows` w USING (window_id)
             WHERE c.query_species_id = s.species_id
-              AND NULLIF(TRIM(w.audio_gcs_uri), '') IS NOT NULL
+              AND NULLIF(TRIM(c.audio_gcs_uri), '') IS NOT NULL
         )''')
     where = 'WHERE ' + ' AND '.join(filters) if filters else ''
-    query = f'''
-        WITH counts AS (
+    counts_cte = counts_select = counts_join = ''
+    if include_counts:
+        counts_cte = f"""WITH counts AS (
             SELECT query_species_id,
                    COUNTIF(response = 'present') AS positive,
                    COUNTIF(response = 'absent') AS negative,
-                   COUNTIF(response = 'unsure') AS unsure,
-                   COUNT(*) AS total
-            FROM `{PROJECT_ID}.{DATASET_ID}.annotations`
-            GROUP BY query_species_id
-        )
-        SELECT s.species_id, s.scientific_name, s.common_name,
-               COALESCE(a.positive, 0) AS positive,
-               COALESCE(a.negative, 0) AS negative,
-               COALESCE(a.unsure, 0) AS unsure,
-               COALESCE(a.total, 0) AS total
+                   COUNTIF(response = 'unsure') AS unsure, COUNT(*) AS total
+            FROM `{PROJECT_ID}.{DATASET_ID}.annotations` GROUP BY query_species_id
+        )"""
+        counts_select = """, COALESCE(a.positive, 0) AS positive,
+                            COALESCE(a.negative, 0) AS negative,
+                            COALESCE(a.unsure, 0) AS unsure,
+                            COALESCE(a.total, 0) AS total"""
+        counts_join = 'LEFT JOIN counts a ON a.query_species_id = s.species_id'
+    query = f"""
+        {counts_cte}
+        SELECT s.species_id, s.scientific_name, s.common_name {counts_select}
         FROM `{PROJECT_ID}.{DATASET_ID}.species` s
-        LEFT JOIN counts a ON a.query_species_id = s.species_id
+        {counts_join}
         {where}
         ORDER BY s.scientific_name
-    '''
-    rows = settings.read_rows(query)
-    return {'species': [
-        {'species_id': row.species_id,
-         'scientific_name': row.scientific_name,
-         'common_name': row.common_name,
-         'annotation_counts': {
-             'positive': row.positive, 'negative': row.negative,
-             'unsure': row.unsure, 'total': row.total,
-         }}
-        for row in rows
-    ]}
+    """
+    species = []
+    for row in settings.read_rows(query):
+        item = {'species_id': row.species_id, 'scientific_name': row.scientific_name,
+                'common_name': row.common_name}
+        if include_counts:
+            item['annotation_counts'] = {
+                'positive': row.positive, 'negative': row.negative,
+                'unsure': row.unsure, 'total': row.total,
+            }
+        species.append(item)
+    return {'species': species}
 
 
 def get_references(species_ids):

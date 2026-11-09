@@ -49,12 +49,11 @@ class WindowRecord:
     - end_sample: Exclusive source frame position, not seconds.
     - sample_rate: Original source sample frames per second.
     - policy: Extraction version; default makes 5s windows starting every 5s.
-    - audio_gcs_uri: Standalone WAV's gs:// URI; None before upload.
 
     Usage:
     - Use window_id to find the same window's WAV, vector, candidates, and labels.
     - Divide sample bounds by sample_rate for source seconds.
-    - Create local windows with no cloud URI; BigQuery rows require a GCS audio URI.
+    - Cloud media belongs to candidates, not window identity.
 
     Audio rules:
     - Source bounds may be 5-10s; the standalone WAV plays from 0-5s.
@@ -66,7 +65,6 @@ class WindowRecord:
         window = WindowRecord("window-id", "recording-id", 220500, 441000, 44100)
         assert window.start_seconds == 5.0
         assert window.end_seconds == 10.0
-        assert window.audio_gcs_uri is None
 
     """
 
@@ -76,7 +74,6 @@ class WindowRecord:
     end_sample: int
     sample_rate: int
     policy: str = "5s-stride5-wrap-v1"
-    audio_gcs_uri: str | None = None
 
     @property
     def start_seconds(self) -> float:

@@ -13,10 +13,10 @@ Use the same seed config for every command below:
 ```
 
 - Import generates all local WAVs, embeddings, and CSV presence labels.
-- Seed uploads only annotated windows and their recording metadata.
+- Seed registers annotated windows and recording metadata without uploading audio.
 - Seed inserts one present vote per window/species under `grillos-seed-gt`.
 - Duplicate CSV intervals do not become extra votes. Multiple species are retained.
-- Uploads and annotation IDs are reusable; retrying does not add votes.
+- Metadata and annotation IDs are reusable; retrying does not add votes.
 - Seed does not replace candidates or delete existing data.
 - Refresh reads BigQuery votes; train reads that snapshot and local embeddings.
 - After refresh, training needs neither this script nor the original Grillos folder.

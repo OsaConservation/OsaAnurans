@@ -207,7 +207,9 @@ def display_workflow_review(workflow: Workflow, config) -> None:
         elif step == "publish":
             print("     Uploading replaces the website's candidate queue.")
         elif step == "cleanup":
-            print("     Delete clips with no annotations or current candidates.")
+            print(
+                "     Delete clips not used by current candidates or references; keep local data."
+            )
     print("\nAll steps run automatically after starting.")
 
 

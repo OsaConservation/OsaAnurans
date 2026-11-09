@@ -31,9 +31,7 @@ CREATE TABLE IF NOT EXISTS `osaanurans.osafrogdataset.windows` (
   window_id STRING NOT NULL,
   recording_id STRING NOT NULL,
   start_seconds FLOAT64 NOT NULL,
-  end_seconds FLOAT64 NOT NULL,
-  audio_gcs_uri STRING NOT NULL,
-  spectrogram_gcs_uri STRING
+  end_seconds FLOAT64 NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS `osaanurans.osafrogdataset.embeddings` (
@@ -48,7 +46,12 @@ CREATE TABLE IF NOT EXISTS `osaanurans.osafrogdataset.candidates` (
   query_species_id STRING NOT NULL,
   created_at TIMESTAMP NOT NULL,
   score FLOAT64 NOT NULL,
-  selection_method STRING
+  selection_method STRING,
+  recording_id STRING NOT NULL,
+  recording_start_seconds FLOAT64 NOT NULL,
+  recording_end_seconds FLOAT64 NOT NULL,
+  audio_gcs_uri STRING NOT NULL,
+  spectrogram_gcs_uri STRING
 );
 
 CREATE TABLE IF NOT EXISTS `osaanurans.osafrogdataset.annotations` (

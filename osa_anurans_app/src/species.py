@@ -262,7 +262,6 @@ def _metadata(prepared, species_rows, references, config):
             "recording_id": recording.recording_id,
             "start_seconds": window.start_seconds,
             "end_seconds": window.end_seconds,
-            "audio_gcs_uri": f"gs://{config.bucket}/{config.prefix.rstrip('/')}/{window.window_id}.wav",
         }
         key = f"new-species:{entry.species_id}:{window.window_id}"
         annotations.append(
@@ -344,7 +343,7 @@ def add_species(config, manifest: SpeciesManifest, *, backend=None, bq=None, sto
                 zip(prepared, references, strict=True), 1
             ):
                 logger.info(
-                    "Uploading reference/window audio %d/%d: %s",
+                    "Uploading reference audio %d/%d: %s",
                     index,
                     len(prepared),
                     entry.species_id,
@@ -353,12 +352,10 @@ def add_species(config, manifest: SpeciesManifest, *, backend=None, bq=None, sto
                     row["reference_id"] == reference["reference_id"] for row in existing_references
                 ):
                     storage.upload_reference(entry.species_id, reference["reference_id"], audio)
-                storage.upload_window(window, audio)
             insert_batch(bq, tables)
             save("metadata_committed")
             with Catalog(config.artifacts / "catalog.sqlite") as catalog:
                 for row in tables["windows"]:
-                    catalog.mark_uploaded(row["window_id"], row["audio_gcs_uri"])
                     catalog.mark_registered(row["window_id"])
         # Select the configuration only after the complete cloud batch is committed.
         latest = _selected_inputs(config)

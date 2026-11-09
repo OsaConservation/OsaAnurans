@@ -5,12 +5,12 @@ Usage:
 - Run the normal import command with --skip-invalid first.
 
 Writes:
-- GCS WAVs and BigQuery metadata for annotated windows only.
+- BigQuery recording/window metadata for annotated windows; no audio uploads.
 - One present vote per window/species, attributed to grillos-seed-gt.
 
 Rules:
 - Seed only the completed import's CSV snapshot, never fetched annotator answers.
-- Reuse uploaded audio and deterministic annotation IDs on retries.
+- Reuse window metadata and deterministic annotation IDs on retries.
 - Preserve existing answers and candidates; do not upload embeddings.
 - This script can be removed after seeding; training does not import it.
 """
@@ -27,7 +27,7 @@ from ..src.catalog import Catalog
 from ..src.cli import configure_cloud_environment
 from ..src.config import load_config
 from ..src.files import write_json
-from ..src.publish import check_cloud_access, sync_windows
+from ..src.publish import check_cloud_access
 
 logger = logging.getLogger(__name__)
 ANNOTATOR = "grillos-seed-gt"
@@ -70,7 +70,7 @@ def insert_annotations(bq, rows) -> None:
     """Stage and insert missing seed votes; preserve all existing answers.
 
     Checks:
-    - Every seed references an uploaded window and an existing species.
+    - Every seed references registered window metadata and an existing species.
     - Stable IDs may be reused only for matching votes.
     - Transactional MERGE makes completed retries insert no extra votes.
     """
@@ -86,8 +86,8 @@ def insert_annotations(bq, rows) -> None:
                 SELECT 1 FROM {bq._table(stage)} s
                 LEFT JOIN {bq._table("windows")} w USING (window_id)
                 LEFT JOIN {bq._table("species")} p ON p.species_id = s.query_species_id
-                WHERE w.window_id IS NULL OR w.audio_gcs_uri IS NULL OR p.species_id IS NULL
-            ) AS 'Seed references missing window audio or species';
+                WHERE w.window_id IS NULL OR p.species_id IS NULL
+            ) AS 'Seed references missing window or species';
             ASSERT NOT EXISTS (
                 SELECT 1 FROM {bq._table(stage)} s
                 JOIN {bq._table("annotations")} t USING (annotation_id)
@@ -106,7 +106,7 @@ def insert_annotations(bq, rows) -> None:
 
 
 def main() -> None:
-    """Validate a completed full import, upload labeled windows, then seed votes."""
+    """Validate a completed import, register window metadata, then seed votes."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, required=True)
     args = parser.parse_args()
@@ -130,9 +130,13 @@ def main() -> None:
     if {row["query_species_id"] for row in rows} - known_species:
         raise ValueError("Seed contains species missing from BigQuery")
     window_ids = {row["window_id"] for row in rows}
-    logger.info("Uploading audio/metadata for %d annotated windows", len(window_ids))
+    logger.info("Registering metadata for %d annotated windows", len(window_ids))
     with Catalog(config.artifacts / "catalog.sqlite") as catalog:
-        sync_windows(config, catalog, bq, storage, window_ids=window_ids)
+        with storage.publication_lock():
+            windows = [window for window in catalog.windows() if window.window_id in window_ids]
+            bq.upsert_windows(catalog.stored_recordings(), windows)
+            for window in windows:
+                catalog.mark_registered(window.window_id)
     logger.info("Inserting %d ground-truth presence votes", len(rows))
     insert_annotations(bq, rows)
     write_json(

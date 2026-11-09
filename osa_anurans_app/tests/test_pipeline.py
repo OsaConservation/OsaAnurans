@@ -137,7 +137,7 @@ def test_local_import_preserves_audio_embedding_alignment_and_reuses_cache(
         recordings = {recording.recording_id: recording for recording in catalog.recordings()}
         assert len(windows) == len(rows) == 15
         assert len(catalog.pending_windows()) == 15  # Local import must not upload anything.
-        assert all(window.audio_gcs_uri is None for window in windows)
+        assert all(not hasattr(window, "audio_gcs_uri") for window in windows)
         window_by_id = {window.window_id: window for window in windows}
         identities = {window.window_id for window in windows}
 

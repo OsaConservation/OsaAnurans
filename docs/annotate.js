@@ -1,10 +1,11 @@
+import { CandidateQueue } from "./candidate-queue.mjs";
 import { createSubmission } from "./annotation-submission.mjs";
-import { createAnnotationSummary } from "./annotation-summary.mjs";
+import { createAnnotationSummary } from "./annotation-summary.mjs?v=query-efficiency-1";
 import { installSpectrogramPreview } from "./spectrogram-preview.mjs";
 ﻿import { element } from "./annotation-dom.mjs";
 import { renderReferences, sound } from "./reference-media.mjs?v=reference-spectrogram-1";
 import { candidatePlayer } from "./candidate-player.mjs?v=reference-spectrogram-1";
-import { CandidateCursorError, createProvider } from "./annotation-data.mjs?v=reference-spectrogram-1";
+import { CandidateCursorError, createProvider } from "./annotation-data.mjs?v=query-efficiency-1";
 
 // Page controls. All reads and saves go through the configured data provider.
 
@@ -24,6 +25,7 @@ let requestVersion = 0;
 let candidateRequest;
 let mediaRefreshAttempted = false;
 let candidateRefresh;
+let candidateQueue;
 let retryAction;
 let referenceRefresh;
 
@@ -119,7 +121,7 @@ function updateProgress() {
     saveButton.disabled = loading || saving || !canReview() || (!pendingSubmission && !batchHasChanges());
     saveButton.hidden = !cloudMode;
     nextButton.hidden = !cloudMode;
-    nextButton.disabled = loading || saving || !canReview() || Boolean(pendingSubmission) || batchHasChanges() || !batch?.nextCursor;
+    nextButton.disabled = loading || saving || !canReview() || Boolean(pendingSubmission) || batchHasChanges() || !batch?.hasNext;
     batchSize.disabled = loading || saving || Boolean(pendingSubmission);
     if (cloudMode) {
         $("#progress").textContent = `${sessionSubmittedCount} answers submitted in this session`;
@@ -198,8 +200,8 @@ function showReferenceLoading(label) {
     $(".target-reference").setAttribute("aria-busy", String(Boolean(label)));
 }
 
-async function loadSpecies(id, count = Number(batchSize.value), cursor) {
-    if (!canReview() || saving) return;
+async function loadSpecies(id, count = Number(batchSize.value)) {
+    if (!canReview() || saving || pendingSubmission) return;
     const version = ++requestVersion;
     candidateRequest?.abort();
     candidateRequest = new AbortController();
@@ -210,26 +212,24 @@ async function loadSpecies(id, count = Number(batchSize.value), cursor) {
     showReferenceLoading(`Loading target reference for ${speciesById.get(id)?.scientificName || id}…`);
     document.querySelectorAll("audio").forEach((audio) => audio.pause());
     speciesId = id;
-    retryAction = () => loadSpecies(id, count, cursor);
+    retryAction = () => loadSpecies(id, count);
     resumeRead = retryAction;
     if (!cloudMode) {
         answers.clear();
     }
     updateProgress();
 
+    const queue = cloudMode ? new CandidateQueue(provider, id) : null;
     try {
         const [references, nextBatch] = await Promise.all([
             provider.getReferenceSounds(id),
-            provider.getCandidates(id, {
-                count,
-                cursor,
-                signal: candidateRequest.signal,
-                restartIfEmpty: true,
-            }),
+            cloudMode ? queue.next(count, candidateRequest.signal) : provider.getCandidates(id),
         ]);
         if (version !== requestVersion) return;
 
         batch = nextBatch;
+        candidateQueue = queue;
+        if (cloudMode) resumeRead = refreshCurrentBatch;
         batchSize.value = count;
         batchSizeValue.value = count;
         mediaRefreshAttempted = false;
@@ -262,15 +262,15 @@ async function loadSpecies(id, count = Number(batchSize.value), cursor) {
 function showBatchStatus() {
     if (!cloudMode) { status.textContent = ""; return; }
 
-    status.textContent = batch.nextCursor === null
+    status.textContent = !batch.hasNext
         ? "This is the last batch for this species. Submit any remaining answers."
         : "Submit answered clips before moving to the next batch.";
 }
 
-async function loadCandidateBatch(cursor, { refresh = false } = {}) {
+async function loadCandidateBatch({ refresh = false } = {}) {
     if (!batch || loading || saving || !canReview()) return false;
     const current = batch;
-    retryAction = () => loadCandidateBatch(cursor, { refresh });
+    retryAction = () => loadCandidateBatch({ refresh });
     resumeRead = retryAction;
     const version = ++requestVersion;
     loading = true;
@@ -280,14 +280,16 @@ async function loadCandidateBatch(cursor, { refresh = false } = {}) {
     updateProgress();
 
     try {
-        const nextBatch = await provider.getCandidates(current.speciesId, {
-            count: current.count,
-            cursor,
-        });
+        candidateRequest?.abort();
+        candidateRequest = new AbortController();
+        const nextBatch = refresh
+            ? await provider.refreshCandidateMedia(current, candidateRequest.signal)
+            : await candidateQueue.next(current.count, candidateRequest.signal);
         if (version !== requestVersion) return false;
 
         document.querySelectorAll(".results-list audio").forEach((audio) => audio.pause());
         batch = nextBatch;
+        resumeRead = refreshCurrentBatch;
         if (!refresh) mediaRefreshAttempted = false;
         renderCandidates();
         showBatchStatus();
@@ -297,6 +299,16 @@ async function loadCandidateBatch(cursor, { refresh = false } = {}) {
         if (error instanceof CandidateCursorError) {
             retryAction = () => loadSpecies(current.speciesId, current.count);
             retry.textContent = "Restart batch";
+        }
+        if (error.code === "CANDIDATES_REMOVED") {
+            retry.textContent = "Restart species";
+            retryAction = () => {
+                if (batchHasChanges() || pendingSubmission) {
+                    status.textContent = "Submit pending answers before restarting this species.";
+                    return;
+                }
+                loadSpecies(current.speciesId, current.count);
+            };
         }
         status.textContent = `Could not load candidates: ${error.message}. Your answers are preserved.`;
         retry.hidden = false;
@@ -310,7 +322,7 @@ async function loadCandidateBatch(cursor, { refresh = false } = {}) {
 }
 
 async function ensureCandidateMediaFresh() {
-    if (!batch || !canReview()) return false;
+    if (!batch?.clips.length || !canReview()) return false;
     if (Date.parse(batch.urlsExpireAt) - Date.now() >= 60_000) return true;
 
     await refreshCurrentBatch();
@@ -320,7 +332,7 @@ async function ensureCandidateMediaFresh() {
 function refreshCurrentBatch() {
     if (candidateRefresh) return candidateRefresh;
 
-    candidateRefresh = loadCandidateBatch(batch.inputCursor, { refresh: true })
+    candidateRefresh = loadCandidateBatch({ refresh: true })
         .finally(() => { candidateRefresh = null; });
     return candidateRefresh;
 }
@@ -338,8 +350,8 @@ function refreshFailedCandidateMedia() {
 }
 
 nextButton.addEventListener("click", () => {
-    if (batch?.nextCursor == null) return;
-    loadCandidateBatch(batch.nextCursor);
+    if (!batch?.hasNext) return;
+    loadCandidateBatch();
 });
 
 batchSize.addEventListener("input", () => {
@@ -458,7 +470,6 @@ async function initialize() {
                     dropdown.dispatchEvent(new Event("change"));
                 },
             });
-            void annotationSummary.refresh();
         }
         await loadSpecies(dropdown.value);
     } catch (error) {
@@ -487,12 +498,13 @@ async function submitAnswers() {
         const labels = { present: "yes", absent: "no", unsure: "unsure" };
         for (const item of pendingSubmission.annotations) submittedAnswers.set(item.candidate_id, labels[item.response]);
         pendingSubmission = null;
-        void annotationSummary?.refresh();
-        status.textContent = batch?.nextCursor
+        annotationSummary?.markStale();
+        status.textContent = batch?.hasNext
             ? "Answers submitted successfully. Select Next batch to continue."
             : "Answers submitted successfully. No more candidates for this species. Select another species to continue.";
 
     } catch (error) {
+        annotationSummary?.markStale();
         status.textContent = `${error.message} Pending answers are retained. A manual retry after a network error may create duplicates.`;
     } finally {
         saving = false;
@@ -531,7 +543,6 @@ $("#login-form").addEventListener("submit", async (event) => {
         $("#login-error").textContent = "";
         if (batch) {
             updateProgress();
-            void annotationSummary?.refresh();
             if (!pendingSubmission && resumeRead) await resumeRead();
         } else await initialize();
     } catch (error) {

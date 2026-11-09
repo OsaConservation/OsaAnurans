@@ -12,7 +12,7 @@ Commands:
 - both: Run import, then train.
 - status: Show local catalog counts.
 - publish: Upload WAVs to GCS, insert BigQuery metadata, then replace candidates.
-- cleanup: Delete GCS window WAVs with neither annotations nor current candidates.
+- cleanup: Delete GCS window WAVs without current candidates or references.
 - refresh: Read BigQuery answers into a local label snapshot.
 - add-species: Add reference audio, local vectors, and cloud seed annotations.
 - inference: Reserved; not implemented.
@@ -108,7 +108,7 @@ def parser() -> argparse.ArgumentParser:
         "--cleanup", action="store_true", help="Remove unused cloud window clips after publication"
     )
     commands.add_parser(
-        "cleanup", help="Remove cloud audio without annotations or current candidates"
+        "cleanup", help="Remove cloud audio without current candidates or references"
     )
     commands.add_parser("inference", help="Reserved for later implementation")
     add = commands.add_parser(

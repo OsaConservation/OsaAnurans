@@ -55,6 +55,9 @@ def handle_read(request):
         elif request.path == '/references':
             arguments = catalog.parse_reference_request(request.args)
             reader = catalog.get_references
+        elif 'candidate_id' in request.args:
+            arguments = candidates.parse_media_refresh(request.args)
+            reader = candidates.refresh_candidate_media
         else:
             arguments = candidates.parse_candidate_request(request.args)
             reader = candidates.get_candidates

@@ -24,7 +24,7 @@ test("summary always fetches fresh counts for all species and rejects invalid co
     let counts = { positive: 0, negative: 0, unsure: 0, total: 0 };
     const provider = new ServerProvider("https://example.com", null, {
         request: async (path) => {
-            assert.equal(path, "/species");
+            assert.equal(path, "/species?include_counts=true");
             count++;
             return { ok: true, json: async () => ({ species: [{
                 species_id: "FROG", scientific_name: "Frog", common_name: "Frog",

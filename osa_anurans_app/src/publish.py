@@ -9,10 +9,10 @@ Operations:
 
 import json
 import logging
-from dataclasses import replace
 from pathlib import Path
 from uuid import UUID
 
+from .cloud.storage import file_checksum
 from .config import AppConfig
 from .files import write_json
 from .progress import activity
@@ -72,11 +72,11 @@ def sync_windows(config: AppConfig, catalog, bq, storage, *, window_ids: set[str
 
 
 def _sync_windows(config, catalog, bq, storage, *, window_ids, clips=None):
-    """Restore absent clips even when SQLite already marks their windows registered.
+    """Verify selected audio separately from recording/window metadata registration.
 
-    - Caller holds the publication lock across all cloud writes.
-    - One bulk GCS listing replaces individual existence requests.
-    - BigQuery window rows and URIs remain valid when their clips are deleted.
+    - Caller holds the publication lock.
+    - Bulk GCS metadata avoids an existence request for every clip.
+    - Registered metadata never implies the clip still exists.
     """
     windows = {window.window_id: window for window in catalog.windows()}
     missing = window_ids - windows.keys()
@@ -84,61 +84,63 @@ def _sync_windows(config, catalog, bq, storage, *, window_ids, clips=None):
         raise ValueError(f"Candidate windows missing from local catalog: {sorted(missing)}")
     clips = storage.list_window_audio() if clips is None else clips
     pending_ids = {window.window_id for window in catalog.pending_windows()}
-    pending = [
-        windows[window_id]
-        for window_id in sorted(window_ids)
-        if window_id in pending_ids or window_id not in clips
-    ]
-    if not pending:
-        logger.info("All %s selected clips exist in GCS and are registered", len(window_ids))
-        return 0
-
-    # Pending windows may belong to older content whose source path was replaced.
-    recordings = catalog.stored_recordings()
-    logger.info("Checking BigQuery metadata for %s pending window clips", len(pending))
-    existing = bq.existing_windows(window.window_id for window in pending)
-    count = 0
-    # Bounded batches keep retries cheap without a BigQuery job per window.
+    pending = [windows[key] for key in sorted(window_ids) if key in pending_ids]
+    existing = bq.existing_windows(window_ids) if pending else {}
+    changed = set()
+    with activity(
+        "GCS: uploading/verifying selected clips", total=len(window_ids), unit="clip"
+    ) as progress:
+        for key in sorted(window_ids):
+            window = windows[key]
+            if key in existing and not _same_window(window, existing[key]):
+                raise ValueError(f"BigQuery window mapping conflicts: {key}")
+            path = catalog.audio_path(key)
+            if path is None or not path.is_file():
+                raise ValueError(f"Local audio missing for window {key}")
+            blob = clips.get(key)
+            if blob is None:
+                storage.upload_window(window, path)
+                changed.add(key)
+            elif blob.size != path.stat().st_size or blob.crc32c != file_checksum(path):
+                raise ValueError(f"Existing GCS audio differs from local window: {key}")
+            progress.update(1)
+    # Cloud clips are ready. A failed metadata write leaves registration pending.
     for start in range(0, len(pending), 500):
-        batch = []
-        selected = pending[start : start + 500]
-        with activity(
-            f"GCS: uploading/verifying clips {start + 1}-{start + len(selected)} of {len(pending)}",
-            total=len(selected),
-            unit="clip",
-        ) as progress:
-            for window in selected:
-                cloud = existing.get(window.window_id)
-                if cloud is not None and not _same_window(window, cloud):
-                    raise ValueError(f"BigQuery window mapping conflicts: {window.window_id}")
-
-                audio_path = catalog.audio_path(window.window_id)
-                if audio_path is None:
-                    raise ValueError(f"Local audio missing for window {window.window_id}")
-                uri = storage.upload_window(window, audio_path)
-                if cloud is not None and cloud.get("audio_gcs_uri") != uri:
-                    raise ValueError(f"BigQuery window audio URI conflicts: {window.window_id}")
-                catalog.mark_uploaded(window.window_id, uri)
-                batch.append(replace(window, audio_gcs_uri=uri))
-                progress.update(1)
-        # WAV uploads are complete; now insert their missing BigQuery metadata.
-        # If the query fails, leave the batch pending so a retry can reuse the WAVs.
-        logger.info(
-            "BigQuery: inserting metadata for %s clips (%s/%s processed)",
-            len(batch),
-            start,
-            len(pending),
-        )
-        bq.upsert_windows(recordings, batch)
+        batch = pending[start : start + 500]
+        logger.info("BigQuery: inserting metadata for %s selected windows", len(batch))
+        bq.upsert_windows(catalog.stored_recordings(), batch)
         for window in batch:
             catalog.mark_registered(window.window_id)
-        count += len(batch)
-        logger.info("Cloud clips ready: %s/%s", count, len(pending))
-    return count
+            changed.add(window.window_id)
+    return len(changed)
+
+
+def _candidate_upload(path, catalog, config):
+    """Copy selection rows and add publication media/source fields; keep the saved run intact."""
+    windows = {window.window_id: window for window in catalog.windows()}
+    destination = path.parent / "candidate-upload.jsonl"
+    temporary = destination.with_suffix(".tmp")
+    try:
+        with path.open(encoding="utf-8") as source, temporary.open("w", encoding="utf-8") as target:
+            for line in source:
+                row = json.loads(line)
+                window = windows[row["window_id"]]
+                row.update(
+                    recording_id=window.recording_id,
+                    recording_start_seconds=window.start_seconds,
+                    recording_end_seconds=window.end_seconds,
+                    audio_gcs_uri=f"gs://{config.bucket}/{config.prefix.rstrip('/')}/{window.window_id}.wav",
+                    spectrogram_gcs_uri=None,
+                )
+                target.write(json.dumps(row, allow_nan=False) + "\n")
+        temporary.replace(destination)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return destination
 
 
 def _restore_protected_audio(config, catalog, bq, storage, protected, clips):
-    """Repair protected clips deleted before a late annotation, when available locally."""
+    """Restore missing current candidate clips when local audio is available."""
     missing = protected - clips.keys()
     local_ids = {window.window_id for window in catalog.windows()}
     repairable = {
@@ -158,21 +160,21 @@ def _restore_protected_audio(config, catalog, bq, storage, protected, clips):
 
 
 def _cleanup_unused_audio(config, catalog, bq, storage):
-    """Delete canonical WAVs outside the current candidate/annotation snapshot.
+    """Delete canonical WAVs outside the current candidate queue.
 
     - Include GCS-only orphans from interrupted uploads.
-    - A late annotation can race this snapshot; subsequent runs repair its audio.
+    - Annotation-only audio is no longer needed for local embedding training.
     - No grace period, metadata deletion, or local file deletion.
     """
     logger.info("GCS: listing window clips for cleanup...")
     clips = storage.list_window_audio()
     protected = bq.protected_window_ids()
     _restore_protected_audio(config, catalog, bq, storage, protected, clips)
-    # Refresh protection after uploads so annotations arriving during repair count too.
-    protected = bq.protected_window_ids()
+    reference_uris = bq.reference_audio_uris()
     unused = []
     for window_id, blob in clips.items():
-        if window_id in protected:
+        uri = f"gs://{config.bucket}/{blob.name}"
+        if window_id in protected or uri in reference_uris:
             continue
         try:
             canonical = str(UUID(window_id)) == window_id
@@ -272,7 +274,7 @@ def publish_candidates(
     """Upload selected audio, then transactionally replace the candidate queue.
 
     - Share a GCS lock with cleanup, including during uploads and metadata writes.
-    - Restore missing protected clips before publishing when local audio is available.
+    - Verify selected clips independently of metadata registration.
     - A run interrupted during cleanup never replaces the queue again.
     - Cleanup requires explicit opt-in, including on retries.
     - Return whether this call replaced the candidate queue.
@@ -306,14 +308,12 @@ def publish_candidates(
         write_json(manifest, payload)
         logger.info("GCS: listing existing window clips...")
         clips = storage.list_window_audio()
-        protected = bq.protected_window_ids()
-        # New selected windows are restored below; do not upload them twice.
-        _restore_protected_audio(config, catalog, bq, storage, protected - window_ids, clips)
         _sync_windows(config, catalog, bq, storage, window_ids=window_ids, clips=clips)
         payload["state"] = "replacing_candidates"
         write_json(manifest, payload)
         logger.info("BigQuery: replacing candidate queue with %s candidates", expected_count)
-        bq.replace_candidates(candidates_path, expected_count, run_id)
+        upload_path = _candidate_upload(candidates_path, catalog, config)
+        bq.replace_candidates(upload_path, expected_count, run_id)
         payload["state"] = "complete"
         write_json(manifest, payload)
     logger.info("Upload complete: %s candidates ready for annotation", expected_count)

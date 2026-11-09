@@ -14,8 +14,11 @@ export function createAnnotationSummary({ provider, available, select, locked })
     const status = document.querySelector("#summary-status");
     const refreshButton = document.querySelector("#refresh-summary");
     const table = document.querySelector("#species-summary");
-    let rows = [], key = "total", descending = true, refreshing = false, refreshAgain = false;
+    let rows = [], key = "total", descending = true, refreshing = false, version = 0;
     section.hidden = false;
+    table.hidden = true;
+    refreshButton.textContent = "Fetch summary counts";
+    status.textContent = "Fetch counts to see annotation totals.";
 
     function render() {
         table.querySelectorAll("thead th").forEach((th) => {
@@ -46,25 +49,25 @@ export function createAnnotationSummary({ provider, available, select, locked })
     }
 
     async function refresh() {
-        if (refreshing) { refreshAgain = true; return; }
+        if (refreshing) return;
+        const requestedVersion = version;
         refreshing = true;
         refreshButton.disabled = true;
         status.textContent = "Loading annotation counts…";
         try {
             rows = await provider.getAnnotationSummary();
+            table.hidden = false;
             render();
-            status.textContent = `Counts updated ${new Date().toLocaleTimeString()}. Most annotations appear first by default; ties are alphabetical.`;
+            status.textContent = requestedVersion === version
+                ? `Counts updated ${new Date().toLocaleTimeString()}.`
+                : "Answers changed while counts loaded. Fetch summary counts to update totals.";
         } catch {
             status.textContent = rows.length
-                ? "Could not refresh counts. Previous counts are still shown; use Refresh counts to retry."
-                : "Could not load counts. Use Refresh counts to retry. You can still select a species below.";
+                ? "Could not refresh counts. Previous counts are still shown; use Fetch summary counts to retry."
+                : "Could not load counts. Use Fetch summary counts to retry. You can still select a species below.";
         } finally {
             refreshing = false;
             refreshButton.disabled = false;
-            if (refreshAgain) {
-                refreshAgain = false;
-                void refresh();
-            }
         }
     }
 
@@ -78,6 +81,10 @@ export function createAnnotationSummary({ provider, available, select, locked })
     });
     return {
         refresh,
+        markStale() {
+            version++;
+            if (!table.hidden) status.textContent = "Answers changed. Fetch summary counts to update totals.";
+        },
         updateLocks() {
             table.querySelectorAll(".summary-species").forEach((button) => { button.disabled = locked(); });
         },

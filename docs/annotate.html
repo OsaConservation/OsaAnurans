@@ -56,10 +56,10 @@
                 <details id="annotation-summary" aria-labelledby="summary-heading" hidden>
                     <summary><h2 id="summary-heading">Annotations by species</h2></summary>
                     <p>Choose a species with fewer annotations to help fill the gaps. Counts include seed annotations and individual votes; repeated reviews count separately.</p>
-                    <button id="refresh-summary" type="button">Refresh counts</button>
+                    <button id="refresh-summary" type="button">Fetch summary counts</button>
                     <p id="summary-status" role="status" aria-live="polite"></p>
                     <div class="summary-scroll">
-                        <table id="species-summary">
+                        <table id="species-summary" hidden>
                             <caption>Saved annotations. Select a column heading to sort.</caption>
                             <thead><tr>
                                 <th scope="col"><button type="button" data-sort="scientificName">Species</button></th>
@@ -131,6 +131,6 @@
             </main>
         </div>
         <script src="annotation-config.js"></script>
-        <script type="module" src="annotate.js?v=reference-spectrogram-1"></script>
+        <script type="module" src="annotate.js?v=query-efficiency-1"></script>
     </body>
 </html>

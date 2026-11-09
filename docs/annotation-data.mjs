@@ -68,14 +68,14 @@ export class ServerProvider {
     }
 
     async loadSpecies() {
-        const data = await this.getJson("/species?has_audio=true&has_candidates=true");
+        const data = await this.getJson("/species?has_audio=true&has_candidates=true&include_counts=false");
         if (!Array.isArray(data?.species)) throw new Error("Invalid species response.");
         return data.species.map(parseSpecies);
     }
 
     async getAnnotationSummary() {
         // Counts must be fresh, independent of reference/catalog caches.
-        const data = await this.getJson("/species");
+        const data = await this.getJson("/species?include_counts=true");
         if (!Array.isArray(data?.species)) throw new Error("Invalid species response.");
         return data.species.map((item) => {
             const species = parseSpecies(item);
@@ -103,7 +103,7 @@ export class ServerProvider {
     }
 
     async loadReferenceSpecies() {
-        const data = await this.getJson("/species?has_audio=true");
+        const data = await this.getJson("/species?has_audio=true&include_counts=false");
         if (!Array.isArray(data?.species)) {
             throw new Error("Invalid species response.");
         }
@@ -221,6 +221,33 @@ export class ServerProvider {
             urlsExpireAt: data.urls_expire_at,
             clips,
         };
+    }
+
+    async refreshCandidateMedia(batch, signal) {
+        const query = new URLSearchParams({ species_id: batch.speciesId });
+        batch.clips.forEach((clip) => query.append("candidate_id", clip.id));
+        const data = await this.getJson(`/candidates?${query}`, signal);
+        if (!Array.isArray(data?.candidates) || !Number.isFinite(Date.parse(data.urls_expire_at))) {
+            throw new Error("Invalid candidate media response.");
+        }
+        const requested = new Map(batch.clips.map((clip) => [clip.id, clip]));
+        const updated = new Map();
+        for (const item of data.candidates) {
+            const clip = parseCandidate(item, batch.speciesId);
+            const original = requested.get(clip.id);
+            if (!original || updated.has(clip.id) || clip.windowId !== original.windowId ||
+                clip.recordingId !== original.recordingId ||
+                clip.recordingOffsets.some((value, index) => value !== original.recordingOffsets[index])) {
+                throw new Error("Candidate media response changed the questions.");
+            }
+            updated.set(clip.id, { ...original, audioUrl: clip.audioUrl, spectrogramUrl: clip.spectrogramUrl });
+        }
+        if (updated.size !== requested.size) {
+            const error = new Error("Some clips are no longer in the candidate queue. Your answers are preserved; submit them before restarting this species.");
+            error.code = "CANDIDATES_REMOVED";
+            throw error;
+        }
+        return { ...batch, clips: batch.clips.map((clip) => updated.get(clip.id)), urlsExpireAt: data.urls_expire_at };
     }
 
     async saveAnnotations(submission) {

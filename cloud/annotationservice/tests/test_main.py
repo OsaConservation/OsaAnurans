@@ -208,7 +208,7 @@ class AnnotationServiceTests(unittest.TestCase):
                 if candidates:
                     self.assertIn('c.query_species_id = s.species_id', query)
                     self.assertIn('JOIN', query)
-                    self.assertIn("NULLIF(TRIM(w.audio_gcs_uri), '') IS NOT NULL", query)
+                    self.assertIn("NULLIF(TRIM(c.audio_gcs_uri), '') IS NOT NULL", query)
                 if audio and candidates:
                     self.assertIn(' AND EXISTS', query)
 
@@ -270,7 +270,7 @@ class AnnotationServiceTests(unittest.TestCase):
         self.assertEqual(params['fetch_count'], 3)
         self.assertIn('ORDER BY c.score ASC, c.candidate_id ASC', client.query.call_args.args[0])
         self.assertNotIn('.recordings`', client.query.call_args.args[0])
-        self.assertIn('w.audio_gcs_uri', client.query.call_args.args[0])
+        self.assertIn('c.audio_gcs_uri', client.query.call_args.args[0])
 
     @patch.object(service.candidates, 'get_candidates')
     def test_candidate_default_count(self, candidates):
@@ -368,6 +368,43 @@ class AnnotationServiceTests(unittest.TestCase):
         self.assertEqual(response.status_code, 500)
         self.assertEqual(response.get_json(), {'error': 'Unable to fetch catalog data'})
         self.assertEqual(response.headers['Access-Control-Allow-Origin'], '*')
+
+
+    @patch.object(service.settings, 'read_rows')
+    def test_species_without_counts_does_not_read_annotations_or_windows(self, read):
+        read.return_value = [SimpleNamespace(species_id='FROG', scientific_name='Frog', common_name='Frog')]
+        response = self.http.get('/species?has_audio=true&has_candidates=true&include_counts=false')
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn('annotation_counts', response.get_json()['species'][0])
+        query = read.call_args.args[0]
+        self.assertNotIn('.annotations`', query)
+        self.assertNotIn('.windows`', query)
+        self.assertIn('.candidates`', query)
+        for suffix in ['?include_counts=maybe', '?include_counts=true&include_counts=false']:
+            read.reset_mock()
+            self.assertEqual(self.http.get('/species' + suffix).status_code, 400)
+            read.assert_not_called()
+
+    @patch.object(service.settings, 'get_client')
+    def test_invalid_exact_id_refresh_never_opens_cloud(self, client):
+        for suffix in [
+            '?species_id=FROG&candidate_id=a&count=5',
+            '?species_id=FROG&candidate_id=a&cursor=old',
+            '?species_id=FROG&candidate_id=a&candidate_id=a',
+            '?species_id=FROG&species_id=OTHER&candidate_id=a',
+            '?candidate_id=a', '?species_id=FROG&candidate_id=',
+            '?species_id=FROG&' + '&'.join(f'candidate_id={i}' for i in range(21)),
+        ]:
+            with self.subTest(suffix=suffix):
+                self.assertEqual(self.http.get('/candidates' + suffix).status_code, 400)
+        client.assert_not_called()
+
+    @patch.object(service.candidates, 'refresh_candidate_media')
+    def test_exact_id_refresh_uses_its_own_read_path(self, refresh):
+        refresh.return_value = {'candidates': [], 'next_cursor': None, 'urls_expire_at': '2099-01-01T00:00:00Z'}
+        response = self.http.get('/candidates?species_id=FROG&candidate_id=a&candidate_id=b')
+        self.assertEqual(response.status_code, 200)
+        refresh.assert_called_once_with('FROG', ['a', 'b'])
 
 
 if __name__ == '__main__':

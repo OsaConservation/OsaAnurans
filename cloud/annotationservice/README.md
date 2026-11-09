@@ -39,7 +39,7 @@ downstream cleaning. See ANNOTATION_SUBMISSIONS.md before updating the frontend.
 - Project: `osaanurans`
 - BigQuery dataset: `osafrogdataset`
 - BigQuery location: `us-south1`
-- Read tables: `species`, `reference_media`, `candidates`, `windows`, `annotations`
+- Read tables: `species`, `reference_media`, `candidates`, `annotations`
 - Write table: `annotations`
 
 The runtime service account needs **BigQuery Job User**
@@ -183,17 +183,20 @@ Keep published candidate IDs, scores, and creation times immutable. Cursor forma
 validated, species-bound continuation data, not signed authorization tokens.
 All candidate reads require a reviewer token and remain bounded and parameterized regardless of cursor.
 
-Save the input cursor (or absence of one for the first page) as well as the next
-cursor. Replay the input cursor to refresh a batch's expired media URLs. Keep
-count unchanged when refreshing, and preserve unsent answers by candidate ID.
+The website fetches 20 candidate metadata rows per API page and displays the chosen
+batch size from its in-memory queue. It downloads media only for displayed clips.
+Refresh exact visible questions using repeated `candidate_id` parameters plus
+`species_id`; do not combine that mode with `cursor` or `count`. Maximum 20 unique
+IDs. Removed IDs are omitted; the frontend preserves questions/answers and reports
+unavailable media instead of substituting other questions.
 URLs expire after 15 minutes, with the same private-bucket and CORS rules as
 reference media. Each window has a standalone five-second audio file in
-`windows.audio_gcs_uri`. Playback bounds are always `[0, 5]`; original recording
+`candidates.audio_gcs_uri`. Playback bounds are always `[0, 5]`; original recording
 offsets are returned separately as metadata and must not be applied to playback
-or local spectrogram generation. Candidate queries no longer join recordings.
+or local spectrogram generation. Candidate queries read candidates only, without window/recording joins.
 
 No reviewer identity is required to read. For submissions, use a
-browser-generated UUID persisted in localStorage as `annotator_id`, and ask for
+browser-generated UUID held in page memory as `annotator_id`, and ask for
 a display name separately. Names must not serve as unique identifiers. Run the
 name-column migration below before enabling submissions. This endpoint does not yet exclude previously
 annotated candidates or reserve batches for one reviewer. Different reviewers
@@ -277,3 +280,16 @@ object URL without its signature should fail without Google authentication.
 
 See [signed URLs](https://docs.cloud.google.com/storage/docs/access-control/signed-urls)
 and [IAM signing permissions](https://docs.cloud.google.com/iam/docs/reference/credentials/rest/v1/projects.serviceAccounts/signBlob).
+
+
+### Opt-in summary counts
+
+`GET /species` accepts `include_counts=true|false` (default true for existing clients).
+With false, the response omits `annotation_counts` and SQL does not read annotations.
+The website sends false for target/reference species lists. It sends true only when
+an annotator presses **Fetch summary counts**. Page load, login, and submissions do
+not automatically fetch counts. Submissions mark any previously loaded totals stale.
+
+Before deploying this service, backfill candidate media/source fields with the app's
+`structs/migrate_candidate_media.sql`. The API response contract remains compatible
+with the old website. The updated website must be tested locally before deployment.
