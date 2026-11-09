@@ -40,7 +40,7 @@ class RecordingRecord:
 
 @dataclass(frozen=True)
 class WindowRecord:
-    """Identify one five-second window and locate it in its source recording.
+    """Identify one window and locate it in its source recording.
 
     Fields:
     - window_id: UUID from recording_id, sample bounds, and policy.
@@ -54,12 +54,6 @@ class WindowRecord:
     - Use window_id to find the same window's WAV, vector, candidates, and labels.
     - Divide sample bounds by sample_rate for source seconds.
     - Cloud media belongs to candidates, not window identity.
-
-    Audio rules:
-    - Source bounds may be 5-10s; the standalone WAV plays from 0-5s.
-    - Saved audio is mono 32 kHz; this record stores no samples or vectors.
-    - Repeat audio samples (wrap padding) to make a short final window last 5s.
-    - Its logical end may extend beyond the source duration.
 
     Example:
         window = WindowRecord("window-id", "recording-id", 220500, 441000, 44100)
