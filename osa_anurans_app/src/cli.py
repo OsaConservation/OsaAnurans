@@ -15,6 +15,7 @@ Commands:
 - publish: Upload WAVs to GCS, insert BigQuery metadata, then replace candidates.
 - cleanup: Delete GCS window WAVs without current candidates or references.
 - refresh: Read BigQuery answers into a local label snapshot.
+- browse: Listen to saved annotation rows in a local browser.
 - add-species: Import labeled audio, local vectors, and optional cloud references.
 - inference: Reserved; not implemented.
 """
@@ -111,6 +112,9 @@ def parser() -> argparse.ArgumentParser:
             )
     commands.add_parser("status", help="Show local catalog counts")
     commands.add_parser("refresh", help="Fetch BigQuery answers and save a consensus snapshot")
+    browse = commands.add_parser("browse", help="Browse saved annotations and local audio")
+    browse.add_argument("--snapshot", type=Path, help="Saved snapshot; defaults to latest.json")
+    browse.add_argument("--port", type=int, default=8765, help="Loopback port (default: 8765)")
     publish = commands.add_parser("publish", help="Replace cloud candidates with a saved local run")
     publish.add_argument("run_directory", type=Path)
     publish.add_argument(
@@ -244,6 +248,15 @@ def execute(args, config, interactive: bool = False) -> None:
     - both retains the combined import/train/generate local workflow.
     """
     if args.action == "exit":
+        return
+    if args.action == "browse":
+        from .annotation_browser_server import run_browser
+
+        run_browser(
+            config,
+            snapshot=getattr(args, "snapshot", None),
+            port=getattr(args, "port", 8765),
+        )
         return
     if args.action == "workflow":
         workflow = configure_workflow(config)

@@ -15,11 +15,23 @@ Open the [annotation page](https://osaconservation.github.io/OsaAnurans/docs/ann
 4. Choose **Yes**, **No**, or **Unsure** for each candidate.
 5. Click **Submit answers**, then **Next batch**.
 
+![Annotation page showing target reference audio, spectrograms, and clips to annotate](documentation/3_annotate_page.png)
+
 - Template references appear first; older references remain available.
 - Spectrograms are generated from audio when no image is supplied.
 - Summary counts load only when you click **Fetch summary counts**.
 - Switching species keeps each species' current batch and answers during this page session.
 - Reloading clears your name, session, batch position, and unsent answers.
+
+<details>
+<summary>See annotation counts by species</summary>
+
+Click **Fetch summary counts** to see saved answers by species. The screenshot
+shows an example; counts change as annotations are added.
+
+![Species summary with positive, negative, unsure, and total answer counts](documentation/2_see_annotation_stats.png)
+
+</details>
 
 ### Run the website locally
 
@@ -66,12 +78,27 @@ audio** when you have new recordings.
 See the [app guide](osa_anurans_app/README.md) for setup, labeled-audio examples,
 settings, and individual commands.
 
+### Browse saved annotations
+
+```powershell
+.\osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli browse
+```
+
+Open the printed local URL to filter individual answers by species, response, or
+annotator, listen to their clips, and generate spectrograms. This uses saved
+annotations and local audio; browsing needs no cloud login. Use the existing
+`refresh` command first for newer answers, then restart the browser server.
+Stop with **Ctrl+C**. See the [browser instructions](osa_anurans_app/README.md#browse-saved-annotations).
+
+![Local annotation browser showing individual answers, annotator names, audio playback, and a generated spectrogram](documentation/view_annotations_webpage.png)
+
 ## Find the code
 
 - [docs/](docs/): website HTML, JavaScript, and spectrogram rendering.
 - [osa_anurans_app/src/](osa_anurans_app/src/): console app and local model workflow.
 - [cloud/annotationservice/](cloud/annotationservice/): password-protected Cloud Run API.
 - [API guide](cloud/annotationservice/README.md): endpoints and backend deployment.
+- [Storage migration guide](cloud/storage-migration/README.md): move audio to `us-east1`.
 
 ## Run checks
 

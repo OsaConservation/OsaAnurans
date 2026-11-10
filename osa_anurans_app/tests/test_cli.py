@@ -8,6 +8,32 @@ from osa_anurans_app.src.cloud import bigquery, storage
 from osa_anurans_app.src.config import AppConfig
 
 
+@pytest.mark.parametrize("interactive", [False, True])
+def test_browse_routes_locally_without_cloud_or_training(tmp_path, monkeypatch, interactive):
+    import argparse
+
+    from osa_anurans_app.src import annotation_browser_server
+
+    config = AppConfig((tmp_path,), None, tmp_path / "artifacts")
+    calls = []
+    monkeypatch.setattr(
+        annotation_browser_server,
+        "run_browser",
+        lambda config, **kwargs: calls.append(kwargs),
+    )
+    monkeypatch.setattr(cli, "_annotation_store", lambda *_: pytest.fail("Cloud access"))
+    monkeypatch.setattr(cli, "train_local", lambda *_: pytest.fail("Training"))
+    if interactive:
+        monkeypatch.setattr(cli, "configure_workflow", lambda *_: "browse")
+        cli.execute(argparse.Namespace(action="workflow"), config, interactive=True)
+        assert calls == [{"snapshot": None, "port": 8765}]
+    else:
+        snapshot = tmp_path / "older"
+        args = cli.parser().parse_args(["browse", "--snapshot", str(snapshot), "--port", "8123"])
+        cli.execute(args, config)
+        assert calls == [{"snapshot": snapshot, "port": 8123}]
+
+
 @pytest.mark.parametrize("field", ["epochs", "batch_size"])
 @pytest.mark.parametrize("value", ["1.5", "true", "0", "-1"])
 def test_toml_rejects_invalid_training_counts_before_work(tmp_path, field, value):

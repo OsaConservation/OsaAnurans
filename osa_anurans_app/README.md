@@ -55,6 +55,27 @@ Choose **Start workflow** to run everything without more prompts. **Esc** cancel
 New recordings start with unknown labels. Importing audio does not assume a species
 is absent. Completed imports are reused on later runs.
 
+## Browse saved annotations
+
+Choose **Browse annotations** in the opening menu, or run:
+
+```powershell
+.\osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli browse
+```
+
+- Open the printed local URL. Stop the server with **Ctrl+C**.
+- Each row is one saved answer, including repeated annotations of the same clip.
+- Filter by species, answer, or annotator name; search recording filenames/window IDs.
+- Select a row to listen and generate its spectrogram. Changing pages clears playback.
+- Source offsets describe the original recording; each saved clip plays from zero.
+- Missing local audio stays visible as an unavailable clip.
+- Browsing uses local files and needs no cloud credentials or model. It does not edit answers.
+- Run `refresh` to fetch newer answers, then restart `browse`. Reloading the page alone
+  does not fetch annotations. Snapshots containing only aggregate CSV labels need a refresh
+  before individual answers can be shown.
+- Use `browse --snapshot <directory>` for an older snapshot, or `browse --port 8123`
+  if the default port 8765 is occupied. Selecting an older snapshot leaves training defaults unchanged.
+
 ## Import labeled clips or add a species
 
 Edit `osa_anurans_app/inputs/species.json`, then choose **Import labeled audio**.

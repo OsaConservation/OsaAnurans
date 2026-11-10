@@ -121,8 +121,14 @@ def test_opening_screen_shows_checklist_and_toggles_with_space(terminal_session,
 
 def test_opening_screen_exit_does_not_run_checked_steps(terminal_session, tmp_path):
     config = AppConfig((tmp_path,), None, tmp_path / "artifacts")
-    terminal_session.send_text("\x1b[B" * (len(ui.STEP_LABELS) + 1) + "\r")
+    terminal_session.send_text("\x1b[A\r")
     assert ui._workflow_menu(["refresh", "train"], config) == "exit"
+
+
+def test_browse_opens_without_running_checked_steps(terminal_session, tmp_path):
+    config = AppConfig((tmp_path,), None, tmp_path / "artifacts")
+    terminal_session.send_text("\x1b[B" * (len(ui.STEP_LABELS) + 1) + "\r")
+    assert ui.configure_workflow(config) == "browse"
 
 
 def test_empty_selection_cannot_continue(terminal_session, tmp_path):

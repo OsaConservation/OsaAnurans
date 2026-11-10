@@ -25,13 +25,18 @@ class Catalog:
     - Validate file/window alignment before committing their mappings.
     """
 
-    def __init__(self, path: Path):
-        """Open/create the catalog and its tables with foreign keys enabled."""
-        path.parent.mkdir(parents=True, exist_ok=True)
+    def __init__(self, path: Path, *, read_only: bool = False):
+        """Open a catalog; read-only access never creates or initializes it."""
         self.path = path
-        self.connection = sqlite3.connect(path)
+        if read_only:
+            self.connection = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            self.connection = sqlite3.connect(path)
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys = ON")
+        if read_only:
+            return
         self.connection.executescript("""
             CREATE TABLE IF NOT EXISTS recordings (
                 recording_id TEXT PRIMARY KEY, path TEXT NOT NULL,
@@ -342,6 +347,14 @@ class Catalog:
             "SELECT audio_path FROM windows WHERE window_id=?", (window_id,)
         ).fetchone()
         return Path(row[0]) if row and row[0] else None
+
+    def audio_paths(self) -> dict[str, Path]:
+        """Read registered local WAV paths in one query."""
+        return {
+            row["window_id"]: Path(row["audio_path"])
+            for row in self.connection.execute("SELECT window_id, audio_path FROM windows")
+            if row["audio_path"]
+        }
 
     def pending_windows(self) -> list[WindowRecord]:
         """List windows not yet marked registered in BigQuery.
