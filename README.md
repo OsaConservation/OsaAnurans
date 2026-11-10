@@ -18,6 +18,7 @@ Open the [annotation page](https://osaconservation.github.io/OsaAnurans/docs/ann
 - Template references appear first; older references remain available.
 - Spectrograms are generated from audio when no image is supplied.
 - Summary counts load only when you click **Fetch summary counts**.
+- Switching species keeps each species' current batch and answers during this page session.
 - Reloading clears your name, session, batch position, and unsent answers.
 
 ### Run the website locally

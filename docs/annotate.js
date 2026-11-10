@@ -26,6 +26,8 @@ let candidateRequest;
 let mediaRefreshAttempted = false;
 let candidateRefresh;
 let candidateQueue;
+// Keep each species' visible batch and remaining queue until the page reloads.
+const speciesBatches = new Map();
 // Reload creates a new ordering; species switches, slider changes, and retries reuse it.
 const samplingSeed = crypto.randomUUID();
 let retryAction;
@@ -202,7 +204,7 @@ function showReferenceLoading(label) {
     $(".target-reference").setAttribute("aria-busy", String(Boolean(label)));
 }
 
-async function loadSpecies(id, count = Number(batchSize.value)) {
+async function loadSpecies(id, count = Number(batchSize.value), { restart = false } = {}) {
     if (!canReview() || saving || pendingSubmission) return;
     const version = ++requestVersion;
     candidateRequest?.abort();
@@ -214,23 +216,27 @@ async function loadSpecies(id, count = Number(batchSize.value)) {
     showReferenceLoading(`Loading target reference for ${speciesById.get(id)?.scientificName || id}…`);
     document.querySelectorAll("audio").forEach((audio) => audio.pause());
     speciesId = id;
-    retryAction = () => loadSpecies(id, count);
+    retryAction = () => loadSpecies(id, count, { restart });
     resumeRead = retryAction;
     if (!cloudMode) {
         answers.clear();
     }
     updateProgress();
 
-    const queue = cloudMode ? new CandidateQueue(provider, id, samplingSeed) : null;
+    const saved = cloudMode && !restart ? speciesBatches.get(id) : null;
+    const queue = saved?.queue ?? (cloudMode ? new CandidateQueue(provider, id, samplingSeed) : null);
+    if (saved) count = saved.batch.count;
     try {
         const [references, nextBatch] = await Promise.all([
             provider.getReferenceSounds(id),
-            cloudMode ? queue.next(count, candidateRequest.signal) : provider.getCandidates(id),
+            saved ? restoreCandidateBatch(saved.batch, candidateRequest.signal)
+                : cloudMode ? queue.next(count, candidateRequest.signal) : provider.getCandidates(id),
         ]);
         if (version !== requestVersion) return;
 
         batch = nextBatch;
         candidateQueue = queue;
+        rememberSpeciesBatch();
         if (cloudMode) resumeRead = refreshCurrentBatch;
         batchSize.value = count;
         batchSizeValue.value = count;
@@ -241,7 +247,7 @@ async function loadSpecies(id, count = Number(batchSize.value)) {
     } catch (error) {
         if (version !== requestVersion) return;
         if (error instanceof CandidateCursorError) {
-            retryAction = () => loadSpecies(id, count);
+            retryAction = () => loadSpecies(id, count, { restart: true });
             retry.textContent = "Restart batch";
         }
         if (cloudMode && batch?.speciesId) {
@@ -259,6 +265,17 @@ async function loadSpecies(id, count = Number(batchSize.value)) {
             updateProgress();
         }
     }
+}
+
+function rememberSpeciesBatch() {
+    if (cloudMode) speciesBatches.set(batch.speciesId, { batch, queue: candidateQueue });
+}
+
+async function restoreCandidateBatch(saved, signal) {
+    if (!saved.clips.length || Date.parse(saved.urlsExpireAt) - Date.now() >= 60_000) return saved;
+
+    // Refresh the same questions; never advance a saved queue to renew media URLs.
+    return provider.refreshCandidateMedia(saved, signal);
 }
 
 function showBatchStatus() {
@@ -291,6 +308,7 @@ async function loadCandidateBatch({ refresh = false } = {}) {
 
         document.querySelectorAll(".results-list audio").forEach((audio) => audio.pause());
         batch = nextBatch;
+        rememberSpeciesBatch();
         resumeRead = refreshCurrentBatch;
         if (!refresh) mediaRefreshAttempted = false;
         renderCandidates();
@@ -299,7 +317,7 @@ async function loadCandidateBatch({ refresh = false } = {}) {
     } catch (error) {
         if (version !== requestVersion) return false;
         if (error instanceof CandidateCursorError) {
-            retryAction = () => loadSpecies(current.speciesId, current.count);
+            retryAction = () => loadSpecies(current.speciesId, current.count, { restart: true });
             retry.textContent = "Restart batch";
         }
         if (error.code === "CANDIDATES_REMOVED") {
@@ -309,7 +327,7 @@ async function loadCandidateBatch({ refresh = false } = {}) {
                     status.textContent = "Submit pending answers before restarting this species.";
                     return;
                 }
-                loadSpecies(current.speciesId, current.count);
+                loadSpecies(current.speciesId, current.count, { restart: true });
             };
         }
         status.textContent = `Could not load candidates: ${error.message}. Your answers are preserved.`;
@@ -363,7 +381,7 @@ batchSize.addEventListener("input", () => {
 batchSize.addEventListener("change", () => {
     if (!cloudMode || !speciesId || loading || saving || pendingSubmission) return;
 
-    loadSpecies(speciesId);
+    loadSpecies(speciesId, Number(batchSize.value), { restart: true });
 });
 
 window.addEventListener("pageshow", () => {
