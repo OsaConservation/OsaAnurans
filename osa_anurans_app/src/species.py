@@ -1,4 +1,4 @@
-"""Five-second references -> local vectors, cloud catalog rows, and seed votes.
+"""Five-second labeled audio -> local vectors, cloud votes, and optional references.
 
 Rules:
 - Validate the whole manifest before cloud writes.
@@ -19,7 +19,7 @@ import soundfile as sf
 
 from .audio import file_hash, identify_recording, recording_windows
 from .catalog import Catalog
-from .cloud.species import insert_batch, read_catalog
+from .cloud.species import LABEL_ANNOTATOR, check_import_conflicts, insert_batch, read_catalog
 from .files import write_json
 from .pipeline import _store_recording, new_run_id, refresh_annotations
 
@@ -32,13 +32,19 @@ AUDIO_MATCH_TOLERANCE = 1e-6
 
 @dataclass(frozen=True)
 class SpeciesInput:
-    """Reviewed metadata and source bytes; source relocation does not change IDs."""
+    """One reviewed label and optional reference.
+
+    - ID-only inputs resolve names from the cloud catalog or this batch.
+    - Source relocation does not change identity; re-encoding does.
+    """
 
     species_id: str
-    scientific_name: str
-    common_name: str
+    scientific_name: str | None
+    common_name: str | None
     audio: Path
     content_hash: str
+    response: str
+    add_as_reference: bool
 
 
 @dataclass(frozen=True)
@@ -90,35 +96,64 @@ def load_manifest(path: Path) -> SpeciesManifest:
     if not isinstance(rows, list) or not rows:
         raise ValueError("species must be a nonempty array")
     entries, names, pairs = [], {}, set()
-    fields = {"scientific_name", "common_name", "reference_audio"}
     for index, row in enumerate(rows, 1):
         try:
-            if not isinstance(row, dict) or set(row) != fields:
-                raise ValueError(f"Expected fields: {', '.join(sorted(fields))}")
-            for field in fields:
-                if not isinstance(row[field], str) or not row[field].strip():
-                    raise ValueError(f"{field} must be a nonempty string")
-            scientific = normalize_name(row["scientific_name"])
-            genus, epithet = scientific.split()
-            species_id = (genus[:3] + epithet[:3]).upper()
-            common = " ".join(row["common_name"].split())
+            entry = _parse_entry(row, path.parent)
+            species_id = entry.species_id
+            scientific, common = entry.scientific_name, entry.common_name
             metadata = (scientific, common)
-            if species_id in names and names[species_id] != metadata:
+            if scientific and species_id in names and names[species_id] != metadata:
                 raise ValueError(f"Conflicting names for species_id {species_id}")
-            names[species_id] = metadata
-            audio = (path.parent / Path(row["reference_audio"]).expanduser()).resolve()
-            validate_audio(audio)
-            content_hash = file_hash(audio)
-            pair = species_id, content_hash
+            if scientific:
+                names[species_id] = metadata
+            pair = species_id, entry.content_hash
             if pair in pairs:
-                raise ValueError(f"Duplicate species/reference pair: {species_id}")
+                raise ValueError(f"Duplicate species/audio pair: {species_id}")
             pairs.add(pair)
-            entries.append(SpeciesInput(species_id, scientific, common, audio, content_hash))
+            entries.append(entry)
         except (ValueError, OSError) as exc:
             raise ValueError(f"species entry {index}: {exc}") from exc
     manifest = SpeciesManifest(path, digest, tuple(entries))
     verify_inputs(manifest)
     return manifest
+
+
+def _parse_entry(row: dict, directory: Path) -> SpeciesInput:
+    """Normalize legacy references and explicit labels into the same input record."""
+    if not isinstance(row, dict):
+        raise ValueError("Expected a species entry object")
+    legacy = "reference_audio" in row
+    identity = {"species_id"} if "species_id" in row else {"scientific_name", "common_name"}
+    required = identity | ({"reference_audio"} if legacy else {"audio", "response"})
+    allowed = required if legacy else required | {"add_as_reference"}
+    if not required <= row.keys() or not row.keys() <= allowed:
+        raise ValueError(
+            f"Expected fields: {', '.join(sorted(required))}; optional: add_as_reference"
+        )
+    if legacy and identity == {"species_id"}:
+        raise ValueError("Legacy reference_audio requires scientific_name and common_name")
+    for field in required:
+        if not isinstance(row[field], str) or not row[field].strip():
+            raise ValueError(f"{field} must be a nonempty string")
+    scientific = common = None
+    if "species_id" in row:
+        species_id = row["species_id"].strip()
+    else:
+        scientific = normalize_name(row["scientific_name"])
+        genus, epithet = scientific.split()
+        species_id = (genus[:3] + epithet[:3]).upper()
+        common = " ".join(row["common_name"].split())
+    response = "present" if legacy else row["response"]
+    reference = True if legacy else row.get("add_as_reference", False)
+    if response not in {"present", "absent"}:
+        raise ValueError("response must be present or absent")
+    if not isinstance(reference, bool) or (reference and response != "present"):
+        raise ValueError("add_as_reference must be boolean and requires a present label")
+    audio = (directory / Path(row["reference_audio" if legacy else "audio"]).expanduser()).resolve()
+    validate_audio(audio)
+    return SpeciesInput(
+        species_id, scientific, common, audio, file_hash(audio), response, reference
+    )
 
 
 def verify_inputs(manifest: SpeciesManifest) -> None:
@@ -127,7 +162,7 @@ def verify_inputs(manifest: SpeciesManifest) -> None:
         raise ValueError("Manifest changed after review; select and review it again")
     for entry in manifest.entries:
         if file_hash(entry.audio) != entry.content_hash:
-            raise ValueError(f"Reference changed after review: {entry.audio}")
+            raise ValueError(f"Audio changed after review: {entry.audio}")
 
 
 def _selected_inputs(config) -> dict:
@@ -153,24 +188,25 @@ def _prepare(config, manifest, directory, backend):
             path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(entry.audio, path)
             if file_hash(path) != entry.content_hash:
-                raise ValueError(f"Reference changed while copying: {entry.audio}")
+                raise ValueError(f"Audio changed while copying: {entry.audio}")
             # Validate the frozen bytes too, before a decoder could pad a short clip.
             validate_audio(path)
             recording = identify_recording(path)
             frames = backend.prepare_audio(path)
             if frames.shape != (1, 160_000) or not np.isfinite(frames).all() or not np.any(frames):
                 raise ValueError(
-                    f"Reference must produce one finite, nonzero model frame: {entry.audio}"
+                    f"Audio must produce one finite, nonzero model frame: {entry.audio}"
                 )
             # Different encodings can contain the same audio despite different file hashes.
-            previous = waveforms.setdefault(entry.species_id, [])
-            for previous_path, waveform in previous:
-                if np.allclose(frames[0], waveform, rtol=0, atol=AUDIO_MATCH_TOLERANCE):
-                    raise ValueError(
-                        f"Duplicate prepared reference audio for {entry.species_id}: "
-                        f"{entry.audio} matches {previous_path}. Keep one reference."
-                    )
-            previous.append((entry.audio, frames[0]))
+            if entry.add_as_reference:
+                previous = waveforms.setdefault(entry.species_id, [])
+                for previous_path, waveform in previous:
+                    if np.allclose(frames[0], waveform, rtol=0, atol=AUDIO_MATCH_TOLERANCE):
+                        raise ValueError(
+                            f"Duplicate prepared reference audio for {entry.species_id}: "
+                            f"{entry.audio} matches {previous_path}. Keep one reference."
+                        )
+                previous.append((entry.audio, frames[0]))
             catalog.add_recording(recording)
             _store_recording(catalog, recording, backend, config.artifacts, frames=frames)
             window = recording_windows(recording)[0]
@@ -185,6 +221,8 @@ def _match_species(entries, existing):
     """Reuse matching catalog metadata; never rename species or infer another ID."""
     result = {}
     for entry in entries:
+        if entry.scientific_name is None:
+            continue
         matches = [
             row
             for row in existing
@@ -208,6 +246,20 @@ def _match_species(entries, existing):
                 raise ValueError(f"Existing species metadata conflicts: {entry.species_id}")
             desired = {key: row[key] for key in desired}
         result[entry.species_id] = desired
+    # ID-only entries may refer to a species declared later in this same batch.
+    for entry in entries:
+        if entry.species_id in result:
+            continue
+        matches = [row for row in existing if row["species_id"] == entry.species_id]
+        if len(matches) != 1:
+            raise ValueError(f"Unknown or duplicate species_id: {entry.species_id}")
+        result[entry.species_id] = {
+            key: matches[0][key] for key in ("species_id", "scientific_name", "common_name")
+        }
+    existing_ids = {row["species_id"] for row in existing}
+    reference_ids = {entry.species_id for entry in entries if entry.add_as_reference}
+    if missing := result.keys() - existing_ids - reference_ids:
+        raise ValueError(f"New species require a present reference: {', '.join(sorted(missing))}")
     return list(result.values())
 
 
@@ -252,8 +304,8 @@ def _reference_rows(prepared, existing, storage, backend, directory):
     return result
 
 
-def _metadata(prepared, species_rows, references, config):
-    """Build add-only rows with stable species/window seed and submission IDs."""
+def _metadata(prepared, species_rows, references):
+    """Build add-only metadata and votes; preserve legacy reference seed IDs."""
     recordings, windows, annotations = {}, {}, []
     for entry, recording, window, _ in prepared:
         recordings[recording.recording_id] = {"recording_id": recording.recording_id}
@@ -263,16 +315,17 @@ def _metadata(prepared, species_rows, references, config):
             "start_seconds": window.start_seconds,
             "end_seconds": window.end_seconds,
         }
-        key = f"new-species:{entry.species_id}:{window.window_id}"
+        annotator = "new-species" if entry.add_as_reference else LABEL_ANNOTATOR
+        key = f"{annotator}:{entry.species_id}:{window.window_id}"
         annotations.append(
             {
                 "annotation_id": str(uuid5(SEED_NAMESPACE, key)),
                 "window_id": window.window_id,
                 "candidate_id": None,
                 "query_species_id": entry.species_id,
-                "response": "present",
-                "annotator_id": "new-species",
-                "annotator_name": "new-species",
+                "response": entry.response,
+                "annotator_id": annotator,
+                "annotator_name": annotator,
                 "submission_id": str(uuid5(SUBMISSION_NAMESPACE, key)),
                 "created_at": datetime.now(UTC).isoformat(),
             }
@@ -287,9 +340,9 @@ def _metadata(prepared, species_rows, references, config):
 
 
 def add_species(config, manifest: SpeciesManifest, *, backend=None, bq=None, storage=None) -> Path:
-    """Prepare references, commit one cloud batch, then refresh all annotations.
+    """Prepare labeled clips, commit one cloud batch, then refresh all annotations.
 
-    - Always writes seed/reference data, independently of candidate publication.
+    - Always writes labels and optional references, independently of candidate publication.
     - Retain local artifacts and a receipt after failures; rerun the same manifest.
     - Shared cloud lock covers preflight, uploads, commit, and local registration.
     """
@@ -323,7 +376,7 @@ def add_species(config, manifest: SpeciesManifest, *, backend=None, bq=None, sto
                 "Embedding configuration differs from the active corpus; import compatible corpus embeddings first"
             )
         receipt["config_id"] = backend.config_id
-        logger.info("Preparing %d species references locally...", len(manifest.entries))
+        logger.info("Preparing %d labeled clips locally...", len(manifest.entries))
         prepared = _prepare(config, manifest, directory, backend)
         save("prepared")
         if bq is None or storage is None:
@@ -333,19 +386,25 @@ def add_species(config, manifest: SpeciesManifest, *, backend=None, bq=None, sto
         with storage.publication_lock():
             _selected_inputs(config)
             verify_inputs(manifest)
-            existing_species, existing_references = read_catalog(bq)
+            existing_species, existing_references = read_catalog(
+                bq, include_references=any(entry.add_as_reference for entry in manifest.entries)
+            )
             species_rows = _match_species(manifest.entries, existing_species)
-            references = _reference_rows(prepared, existing_references, storage, backend, directory)
-            tables = _metadata(prepared, species_rows, references, config)
+            reference_inputs = [clip for clip in prepared if clip[0].add_as_reference]
+            references = _reference_rows(
+                reference_inputs, existing_references, storage, backend, directory
+            )
+            tables = _metadata(prepared, species_rows, references)
+            check_import_conflicts(bq, tables["annotations"])
             receipt["rows"] = tables
             save("uploading")
             for index, ((entry, _, window, audio), reference) in enumerate(
-                zip(prepared, references, strict=True), 1
+                zip(reference_inputs, references, strict=True), 1
             ):
                 logger.info(
                     "Uploading reference audio %d/%d: %s",
                     index,
-                    len(prepared),
+                    len(reference_inputs),
                     entry.species_id,
                 )
                 if not any(
@@ -365,7 +424,7 @@ def add_species(config, manifest: SpeciesManifest, *, backend=None, bq=None, sto
         receipt["snapshot"] = str(snapshot)
         save("refreshed")
         save("complete")
-        logger.info("Species import complete: %s", directory)
+        logger.info("Labeled audio import complete: %s", directory)
         if fresh_workspace:
             logger.info("Import corpus audio before generating useful similarity candidates")
         return snapshot

@@ -15,6 +15,7 @@ from pathlib import Path
 from .records import IntervalLabel, LabelCounts, WindowRecord
 
 logger = logging.getLogger(__name__)
+REFERENCE_SEED_ANNOTATORS = frozenset({"new-species", "eoin-template-seed"})
 
 
 def aggregate_votes(rows: Iterable[Mapping]) -> list[LabelCounts]:
@@ -214,7 +215,7 @@ def load_reference_seed_pairs(directory: Path) -> set[tuple[str, str]]:
     with path.open(encoding="utf-8") as stream:
         for line in stream:
             answer = json.loads(line)
-            if answer.get("annotator_id") in {"new-species", "eoin-template-seed"}:
+            if answer.get("annotator_id") in REFERENCE_SEED_ANNOTATORS:
                 pairs.add((answer["window_id"], answer["query_species_id"]))
     return pairs
 

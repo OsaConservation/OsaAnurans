@@ -2,7 +2,8 @@
 
 Workflows:
 - import_local: Audio + CSV -> local WAVs, embeddings, and label snapshot.
-- train_local: Embeddings + snapshot -> classifier, metrics, and candidates.
+- train_local: Embeddings + snapshot -> classifier and metrics.
+- generate_candidates_local: Saved classifier + current labels -> candidates.
 - refresh_annotations: BigQuery answers -> local consensus snapshot.
 
 Responsibilities:
@@ -521,34 +522,11 @@ def refresh_annotations(config: AppConfig, bq) -> Path:
     return snapshot
 
 
-def train_local(
-    config: AppConfig, *, snapshot: Path | None = None, config_id: str | None = None
-) -> Path:
-    """Train from saved local data and return the new model/candidate run directory.
-
-    Steps:
-    1. Select saved embeddings and a label snapshot.
-    2. Select windows with one known-present species; keep recordings in one split.
-    3. Train/evaluate the classifier; save weights, species order, and metrics.
-    4. Select similar/uncertain windows; save up to N candidates per species.
-
-    Returns:
-    - Path to the new model/candidate run directory.
-
-    Options:
-    - snapshot/config_id: Override latest.json defaults.
-
-    Boundaries:
-    - No original audio required and no cloud writes.
-    """
-    from .candidates import write_candidates
-    from .model.datasets import DatasetSplit, build_dataset, split_by_recording
-    from .model.train import train_classifier
-
-    # 1. Select the saved inputs; original source audio is not needed for training.
+def _local_model_inputs(config, snapshot=None, config_id=None):
+    """Resolve saved labels and embeddings without reading original recordings."""
     latest_path = config.artifacts / "latest.json"
     latest = json.loads(latest_path.read_text(encoding="utf-8")) if latest_path.exists() else {}
-    snapshot = snapshot or (Path(latest["snapshot"]) if "snapshot" in latest else None)
+    snapshot = snapshot or (Path(latest["snapshot"]) if latest.get("snapshot") else None)
     config_id = config_id or latest.get("config_id")
     if snapshot is None or config_id is None:
         raise ValueError(
@@ -558,26 +536,137 @@ def train_local(
     with Catalog(config.artifacts / "catalog.sqlite") as catalog:
         rows = catalog.embedding_rows(config_id)
 
-    # 2. Select single-label examples, train the probe, and save weights/metrics.
     labels = load_snapshot(snapshot)
+    return rows, labels, snapshot, config_id
+
+
+def _training_split(rows, labels, config):
+    """Share the recording split between training and similarity-only selection."""
+    from .model.datasets import DatasetSplit, build_dataset, split_by_recording
+
     dataset = build_dataset(rows, labels)
-    run_dir = config.artifacts / "runs" / new_run_id()
-    # Reuse exactly the same split for model evaluation and candidate exclusion.
     if len({row.recording_id for row in dataset.rows}) >= 2:
         split = split_by_recording(dataset, config.test_fraction, config.seed)
     else:
         split = DatasetSplit(list(range(len(dataset.rows))), [])
+    return dataset, split
+
+
+def train_local(
+    config: AppConfig, *, snapshot: Path | None = None, config_id: str | None = None
+) -> Path:
+    """Save a classifier and train/test results; never generate or upload candidates.
+
+    - Reuse local embeddings and keep recordings on one side of the split.
+    - With fewer than two classes, save a similarity-only context instead of a model.
+    - Select a successfully completed classifier as the default for later generation.
+    """
+    from .model.train import train_classifier
+
+    rows, labels, snapshot, config_id = _local_model_inputs(config, snapshot, config_id)
+    dataset, split = _training_split(rows, labels, config)
+    run_dir = config.artifacts / "runs" / new_run_id()
     held_out = {dataset.rows[index].recording_id for index in split.test}
-    artifact = None
-    if len({dataset.labels[index] for index in split.train}) >= 2:
-        artifact = train_classifier(dataset, run_dir, config, split=split)
+    trained = len({dataset.labels[index] for index in split.train}) >= 2
+    if trained:
+        train_classifier(dataset, run_dir, config, split=split)
     else:
-        logger.warning("Not enough classes for a probe; generating similarity-only candidates")
+        logger.warning(
+            "Not enough classes to train a classifier; similarity-only generation is available"
+        )
         run_dir.mkdir(parents=True)
         write_json(run_dir / "config.json", {"mode": "similarity_only", "config_id": config_id})
+    write_json(
+        run_dir / "annotations.json",
+        {
+            "snapshot": str(snapshot.resolve()),
+            "config_id": config_id,
+            "held_out_recordings": sorted(held_out),
+        },
+    )
+    if trained:
+        latest_path = config.artifacts / "latest.json"
+        latest = json.loads(latest_path.read_text()) if latest_path.exists() else {}
+        latest["classifier_run"] = str(run_dir.resolve())
+        write_json(latest_path, latest)
+    logger.info("Training results saved: %s", run_dir)
+    return run_dir
+
+
+def latest_classifier_run(config: AppConfig, config_id: str | None = None) -> Path | None:
+    """Find a completed compatible model, including runs saved before this split."""
+    latest_path = config.artifacts / "latest.json"
+    latest = json.loads(latest_path.read_text()) if latest_path.exists() else {}
+    config_id = config_id or latest.get("config_id")
+    if not config_id:
+        return None
+    directories = sorted((config.artifacts / "runs").glob("*"), reverse=True)
+    if latest.get("classifier_run"):
+        directories.insert(0, Path(latest["classifier_run"]))
+    required = ("model.json", "model.pt", "metrics.json", "split.csv", "annotations.json")
+    for directory in dict.fromkeys(directories):
+        if not all((directory / name).is_file() for name in required):
+            continue
+        metadata = json.loads((directory / "model.json").read_text())
+        if metadata.get("embedding_config_id") == config_id:
+            return directory
+    return None
+
+
+def _candidate_model(config, config_id, directory):
+    """Load model exclusions from its saved split, never a newly calculated split."""
+    if directory is None:
+        return None, None
+    directory = directory.resolve()
+    if (directory / "model.json").exists():
+        from .model.model import load_artifact
+
+        artifact = load_artifact(directory, config.device)
+        if artifact.config_id != config_id:
+            raise ValueError(
+                "Classifier embedding configuration does not match selected embeddings"
+            )
+        with (directory / "split.csv").open(newline="", encoding="utf-8") as handle:
+            held_out = {
+                row["recording_id"] for row in csv.DictReader(handle) if row["partition"] == "test"
+            }
+        return artifact, held_out
+    settings = json.loads((directory / "config.json").read_text())
+    if settings.get("mode") != "similarity_only" or settings.get("config_id") != config_id:
+        raise ValueError("Selected run is not a compatible classifier or similarity-only context")
+    context = json.loads((directory / "annotations.json").read_text())
+    return None, set(context["held_out_recordings"])
+
+
+def generate_candidates_local(
+    config: AppConfig,
+    *,
+    model_directory: Path | None = None,
+    snapshot: Path | None = None,
+    config_id: str | None = None,
+) -> Path:
+    """Save a new candidate selection using current labels and an optional saved model.
+
+    - Reuse the latest compatible classifier unless a run is supplied explicitly.
+    - Without a classifier, use similarity only; never train implicitly.
+    - Preserve the model's held-out recordings and leave earlier runs unchanged.
+    """
+    from .candidates import write_candidates
+
+    rows, labels, snapshot, config_id = _local_model_inputs(config, snapshot, config_id)
+    model_directory = model_directory or latest_classifier_run(config, config_id)
+    artifact, held_out = _candidate_model(config, config_id, model_directory)
+    if held_out is None:
+        dataset, split = _training_split(rows, labels, config)
+        held_out = {dataset.rows[index].recording_id for index in split.test}
+    if artifact is None:
+        logger.info("Generating similarity-only candidates; no classifier selected")
+    else:
+        logger.info("Generating candidates using classifier: %s", model_directory)
+    run_dir = config.artifacts / "runs" / new_run_id()
+    run_dir.mkdir(parents=True)
     write_json(run_dir / "annotations.json", {"snapshot": str(snapshot.resolve())})
 
-    # 3. Select similarity matches first, then uncertainty; never query the cloud.
     count = write_candidates(
         run_dir / "candidates.jsonl",
         rows,
@@ -600,8 +689,10 @@ def train_local(
                 json.loads((run_dir / "candidate-selection.json").read_text())["species"]
             ),
             "classifier_available": artifact is not None,
+            "model_directory": str(model_directory.resolve()) if model_directory else None,
+            "embedding_config_id": config_id,
             "local_only": True,
         },
     )
-    logger.info("Local run with %d candidates saved: %s", count, run_dir)
+    logger.info("Local selection with %d candidates saved: %s", count, run_dir)
     return run_dir

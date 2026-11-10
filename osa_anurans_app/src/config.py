@@ -15,7 +15,7 @@ class AppConfig:
     - audio_roots: Directories to ingest new recordings from.
     - annotations_csv: Optional CSV labels for one-time seed imports.
     - artifacts: Store SQLite, WAVs, vectors, snapshots, and training runs.
-    - species_manifest: JSON input for adding species references and seed votes.
+    - species_manifest: JSON input for labeled clips and optional species references.
     - project/dataset/bucket/prefix/location: Explicit cloud destinations.
     - device/seed/epochs/batch_size/learning_rate/test_fraction: Training settings.
     - candidates_per_species: Maximum saved candidates per species; default 100.

@@ -63,11 +63,11 @@ def test_invalid_workflow_is_rejected(selected):
         ui.Workflow.from_selection(selected)
 
 
-def test_configure_upload_includes_training_and_go_back_preserves_choices(
+def test_configure_upload_includes_generation_and_go_back_preserves_choices(
     tmp_path, monkeypatch, capsys
 ):
     config = AppConfig((tmp_path,), None, tmp_path / "artifacts")
-    # Upload alone becomes train + upload; the user can return to change that plan.
+    # Upload alone becomes generate + upload; training remains an independent choice.
     answers = iter([["publish"], ["refresh", "train"]])
     decisions = iter(["Go back", "Start workflow"])
     questions = []
@@ -82,7 +82,7 @@ def test_configure_upload_includes_training_and_go_back_preserves_choices(
     assert workflow.steps == ("refresh", "train")
     assert len(questions) == 2
     output = capsys.readouterr().out
-    assert "Training included" in output
+    assert "Candidate generation included" in output
     assert "replaces the website's candidate queue" in output
 
 
@@ -134,10 +134,31 @@ def test_empty_selection_cannot_continue(terminal_session, tmp_path):
 def test_cleanup_is_an_independent_workflow_step():
     assert ui.Workflow.from_selection(["cleanup"]).steps == ("cleanup",)
     assert ui.Workflow.from_selection(["cleanup", "publish"]).steps == (
-        "train",
+        "generate",
         "publish",
         "cleanup",
     )
+
+
+def test_train_generate_and_upload_have_separate_dependencies():
+    assert ui.Workflow.from_selection(["train"]).steps == ("train",)
+    assert ui.Workflow.from_selection(["generate"]).steps == ("generate",)
+    assert ui.Workflow.from_selection(["publish"]).steps == ("generate", "publish")
+    assert ui.Workflow.from_selection(["train", "publish"]).steps == (
+        "train",
+        "generate",
+        "publish",
+    )
+
+
+def test_default_workflow_keeps_training_and_generation_selected(tmp_path, monkeypatch, capsys):
+    config = AppConfig((tmp_path,), None, tmp_path / "outputs")
+    monkeypatch.setattr(ui, "_workflow_menu", lambda selected, config: selected)
+    monkeypatch.setattr(ui, "_select", lambda *args: "Start workflow")
+    assert ui.configure_workflow(config).steps == ("refresh", "train", "generate")
+    output = capsys.readouterr().out
+    assert "no candidate generation" in output
+    assert "Use this workflow's training result" in output
 
 
 def test_opening_menu_can_toggle_cleanup(terminal_session, tmp_path):

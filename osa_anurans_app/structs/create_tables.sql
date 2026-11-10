@@ -10,7 +10,9 @@ CREATE TABLE IF NOT EXISTS `osaanurans.osafrogdataset.reference_media` (
   reference_id STRING NOT NULL,
   species_id STRING NOT NULL,
   audio_gcs_uri STRING NOT NULL,
-  spectrogram_gcs_uri STRING
+  spectrogram_gcs_uri STRING,
+  -- Lower values appear first; NULL uses the normal reference order (1).
+  display_order INT64
 );
 
 CREATE TABLE IF NOT EXISTS `osaanurans.osafrogdataset.deployments` (

@@ -113,6 +113,8 @@ class AnnotationServiceTests(unittest.TestCase):
         self.assertEqual(response.headers['Access-Control-Allow-Origin'], '*')
 
         config = get_client.return_value.query.call_args.kwargs['job_config']
+        self.assertIn('ORDER BY species_id, COALESCE(display_order, 1), reference_id',
+                      get_client.return_value.query.call_args.args[0])
         self.assertEqual(config.query_parameters[0].values, ['AGACAL', 'AGAANN'])
         self.assertEqual(config.maximum_bytes_billed, 100_000_000)
         call = media.bucket.return_value.blob.return_value.generate_signed_url.call_args.kwargs

@@ -97,6 +97,7 @@ def test_cloud_environment_uses_config_and_preserves_overrides(tmp_path, monkeyp
         ["import"],
         ["refresh"],
         ["train"],
+        ["generate"],
         ["refresh", "train"],
         ["import", "refresh", "train", "publish"],
         ["publish"],
@@ -120,6 +121,11 @@ def test_workflow_runs_selected_steps_without_prompting(tmp_path, monkeypatch, s
         calls.append("publish")
 
     monkeypatch.setattr(cli, "train_local", train)
+    monkeypatch.setattr(
+        cli,
+        "generate_candidates_local",
+        lambda config, **kwargs: calls.append("generate") or directory,
+    )
     monkeypatch.setattr(cli, "_execute_cloud", upload)
     workflow = cli.Workflow.from_selection(selected)
     cli.execute_workflow(workflow, config)
@@ -135,7 +141,66 @@ def test_failed_training_never_uploads_an_older_run(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "train_local", fail)
     monkeypatch.setattr(cli, "_execute_cloud", lambda *args: pytest.fail("Unexpected upload"))
     with pytest.raises(RuntimeError, match="Training failed"):
+        cli.execute_workflow(cli.Workflow.from_selection(["train", "publish"]), config)
+
+
+def test_workflow_generation_uses_new_model_and_uploads_only_new_selection(tmp_path, monkeypatch):
+    config = AppConfig((tmp_path,), None, tmp_path / "outputs")
+    model, selection = tmp_path / "model", tmp_path / "selection"
+    monkeypatch.setattr(cli, "train_local", lambda config: model)
+
+    def generate(config, *, model_directory):
+        assert model_directory == model
+        return selection
+
+    monkeypatch.setattr(cli, "generate_candidates_local", generate)
+    uploads = []
+    monkeypatch.setattr(
+        cli, "_execute_cloud", lambda args, config: uploads.append(args.run_directory)
+    )
+    cli.execute_workflow(cli.Workflow.from_selection(["train", "publish"]), config)
+    assert uploads == [selection]
+
+
+def test_failed_generation_stops_publication(tmp_path, monkeypatch):
+    config = AppConfig((tmp_path,), None, tmp_path / "outputs")
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("generation failed")
+
+    monkeypatch.setattr(cli, "generate_candidates_local", fail)
+    monkeypatch.setattr(
+        cli, "_execute_cloud", lambda *args: pytest.fail("Must not upload an older selection")
+    )
+    with pytest.raises(RuntimeError, match="generation failed"):
         cli.execute_workflow(cli.Workflow.from_selection(["publish"]), config)
+
+
+def test_direct_train_does_not_generate_candidates(tmp_path, monkeypatch):
+    config = AppConfig((tmp_path,), None, tmp_path / "outputs")
+    monkeypatch.setattr(cli, "train_local", lambda *args, **kwargs: tmp_path / "model")
+    monkeypatch.setattr(
+        cli,
+        "generate_candidates_local",
+        lambda *args, **kwargs: pytest.fail("Training must not generate"),
+    )
+    cli.execute(cli.parser().parse_args(["train"]), config)
+
+
+def test_direct_generate_passes_explicit_model_without_training(tmp_path, monkeypatch):
+    config = AppConfig((tmp_path,), None, tmp_path / "outputs")
+    monkeypatch.setattr(
+        cli, "train_local", lambda *args, **kwargs: pytest.fail("Generation must not train")
+    )
+    calls = []
+    monkeypatch.setattr(
+        cli,
+        "generate_candidates_local",
+        lambda config, **kwargs: calls.append(kwargs) or tmp_path / "selection",
+    )
+    model = tmp_path / "saved-model"
+    cli.execute(cli.parser().parse_args(["generate", "--model-directory", str(model)]), config)
+    assert calls == [{"model_directory": model, "snapshot": None, "config_id": None}]
 
 
 def test_cancelled_workflow_does_not_process_data(tmp_path, monkeypatch):
@@ -191,7 +256,7 @@ def test_input_and_output_config_paths_resolve_beside_config(tmp_path):
 def test_cleanup_workflow_runs_after_publication_or_on_its_own(tmp_path, monkeypatch):
     config = AppConfig((tmp_path,), None, tmp_path / "artifacts")
     directory = config.artifacts / "runs" / "new-run"
-    monkeypatch.setattr(cli, "train_local", lambda config: directory)
+    monkeypatch.setattr(cli, "generate_candidates_local", lambda config, **kwargs: directory)
     calls = []
     monkeypatch.setattr(
         cli, "_execute_cloud", lambda args, config: calls.append((args.action, args.run_directory))
@@ -207,7 +272,7 @@ def test_cleanup_workflow_runs_after_publication_or_on_its_own(tmp_path, monkeyp
 
 def test_failed_publication_stops_cleanup(tmp_path, monkeypatch):
     config = AppConfig((tmp_path,), None, tmp_path / "artifacts")
-    monkeypatch.setattr(cli, "train_local", lambda config: tmp_path / "run")
+    monkeypatch.setattr(cli, "generate_candidates_local", lambda config, **kwargs: tmp_path / "run")
 
     def fail(args, config):
         assert args.action == "publish"

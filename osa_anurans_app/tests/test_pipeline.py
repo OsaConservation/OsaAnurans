@@ -12,8 +12,9 @@ from osa_anurans_app.src.annotations import load_snapshot, save_snapshot
 from osa_anurans_app.src.audio import SAMPLE_RATE, WINDOW_SAMPLES
 from osa_anurans_app.src.catalog import Catalog
 from osa_anurans_app.src.config import AppConfig, load_config
+from osa_anurans_app.src.files import write_json
 from osa_anurans_app.src.model.model import load_artifact
-from osa_anurans_app.src.pipeline import import_local, train_local
+from osa_anurans_app.src.pipeline import generate_candidates_local, import_local, train_local
 
 
 class TinyBackend:
@@ -189,9 +190,11 @@ def test_local_training_reloads_probe_and_covers_every_window_species(local_conf
     assert probabilities.argmax(axis=1).tolist() == [0, 1]
     assert np.allclose(probabilities.sum(axis=1), 1)
 
-    metadata = json.loads((run_dir / "candidates.json").read_text())
+    assert not (run_dir / "candidates.jsonl").exists()
+    selection = generate_candidates_local(local_config, model_directory=run_dir)
+    metadata = json.loads((selection / "candidates.json").read_text())
     candidates = [
-        json.loads(line) for line in (run_dir / "candidates.jsonl").read_text().splitlines()
+        json.loads(line) for line in (selection / "candidates.jsonl").read_text().splitlines()
     ]
     assert metadata["local_only"] is True
     assert metadata["count"] == len(candidates) == 24
@@ -216,6 +219,90 @@ def test_local_training_reloads_probe_and_covers_every_window_species(local_conf
         }
     assert not held_out_windows.intersection(row["window_id"] for row in candidates)
     assert json.loads((run_dir / "metrics.json").read_text())["test"]["accuracy"] == 1
+    assert not (run_dir / "candidates.jsonl").exists()
+    assert metadata["model_directory"] == str(run_dir.resolve())
+
+
+def test_generation_reuses_legacy_model_split_with_current_labels(local_config, monkeypatch):
+    from pathlib import Path
+
+    import_local(local_config, backend=TinyBackend())
+    model = train_local(local_config)
+    with (model / "split.csv").open(newline="", encoding="utf-8") as handle:
+        held_out = {
+            row["recording_id"] for row in csv.DictReader(handle) if row["partition"] == "test"
+        }
+    # Old runs only saved the snapshot path here. Their split.csv remains authoritative.
+    context = json.loads((model / "annotations.json").read_text())
+    (model / "annotations.json").write_text(json.dumps({"snapshot": context["snapshot"]}))
+    labels = load_snapshot(Path(context["snapshot"]))
+    excluded = {(label.window_id, label.species_id) for label in labels if label.species_id == "A"}
+    snapshot = save_snapshot(
+        local_config.artifacts / "updated-labels",
+        labels,
+        "bigquery",
+        raw_answers=[
+            {
+                "window_id": window,
+                "query_species_id": species,
+                "response": "present",
+                "annotator_id": "new-species",
+            }
+            for window, species in excluded
+        ],
+    )
+    write_json(
+        local_config.artifacts / "latest.json",
+        {
+            "config_id": TinyBackend.config_id,
+            "snapshot": str(snapshot),
+        },
+    )
+    monkeypatch.setattr(
+        "osa_anurans_app.src.model.train.train_classifier",
+        lambda *args, **kwargs: pytest.fail("Generation must not train"),
+    )
+    selection = generate_candidates_local(replace(local_config, seed=999, test_fraction=0.4))
+    metadata = json.loads((selection / "candidates.json").read_text())
+    assert metadata["model_directory"] == str(model.resolve())
+    assert json.loads((selection / "annotations.json").read_text())["snapshot"] == str(
+        snapshot.resolve()
+    )
+    candidates = [
+        json.loads(line) for line in (selection / "candidates.jsonl").read_text().splitlines()
+    ]
+    assert not excluded.intersection(
+        (row["window_id"], row["query_species_id"]) for row in candidates
+    )
+    with Catalog(local_config.artifacts / "catalog.sqlite") as catalog:
+        test_windows = {
+            window.window_id for window in catalog.windows() if window.recording_id in held_out
+        }
+    assert not test_windows.intersection(row["window_id"] for row in candidates)
+
+
+def test_generation_creates_new_selections_and_leaves_models_and_old_queues_unchanged(local_config):
+    import_local(local_config, backend=TinyBackend())
+    model = train_local(local_config)
+    weights = (model / "model.pt").read_bytes()
+    first = generate_candidates_local(replace(local_config, candidates_per_species=2))
+    original = (first / "candidates.jsonl").read_bytes()
+    second = generate_candidates_local(replace(local_config, candidates_per_species=3))
+    assert len({model, first, second}) == 3
+    assert json.loads((first / "candidates.json").read_text())["count"] == 4
+    assert json.loads((second / "candidates.json").read_text())["count"] == 6
+    assert (first / "candidates.jsonl").read_bytes() == original
+    assert (model / "model.pt").read_bytes() == weights
+    assert not (model / "candidates.json").exists()
+
+
+def test_generation_rejects_explicit_incompatible_model_before_saving_candidates(local_config):
+    import_local(local_config, backend=TinyBackend())
+    model = train_local(local_config)
+    before = set((local_config.artifacts / "runs").iterdir())
+    with pytest.raises(ValueError, match="embedding configuration does not match"):
+        generate_candidates_local(local_config, model_directory=model, config_id="different-model")
+    assert set((local_config.artifacts / "runs").iterdir()) == before
 
 
 @pytest.mark.parametrize("annotator_id", ["new-species", "eoin-template-seed"])
@@ -241,6 +328,7 @@ def test_training_excludes_reference_pairs_from_snapshot_provenance(local_config
         local_config.artifacts / "references", labels, "bigquery", raw_answers=answers
     )
     run = train_local(local_config, snapshot=snapshot)
+    run = generate_candidates_local(local_config, model_directory=run, snapshot=snapshot)
     candidates = [json.loads(line) for line in (run / "candidates.jsonl").read_text().splitlines()]
     actual = {(row["window_id"], row["query_species_id"]) for row in candidates}
     assert not actual.intersection(references)
@@ -273,7 +361,7 @@ def test_loaded_config_trains_and_saves_manifest_path(local_config, explicit_man
     assert saved["species_manifest"] == str(config.species_manifest)
     assert saved["artifacts"] == str(config.artifacts)
     assert load_artifact(directory).species_ids == ("A", "B")
-    assert json.loads((directory / "candidates.json").read_text())["count"] > 0
+    assert not (directory / "candidates.json").exists()
 
 
 def test_failed_alignment_does_not_publish_partial_catalog_or_latest_snapshot(
@@ -304,7 +392,8 @@ def test_failed_alignment_does_not_publish_partial_catalog_or_latest_snapshot(
 def test_training_uses_configured_candidate_limit(local_config):
     config = replace(local_config, candidates_per_species=2)
     import_local(config, backend=TinyBackend())
-    run_dir = train_local(config)
+    model_directory = train_local(config)
+    run_dir = generate_candidates_local(config, model_directory=model_directory)
     metadata = json.loads((run_dir / "candidates.json").read_text())
     candidates = [
         json.loads(line) for line in (run_dir / "candidates.jsonl").read_text().splitlines()
@@ -401,7 +490,10 @@ def test_import_accepts_whitespace_around_annotation_filenames(local_config):
 
 
 @pytest.mark.parametrize("multi_positive", [False, True])
-def test_similarity_only_run_without_trainable_classifier(local_config, multi_positive):
+@pytest.mark.parametrize("train_first", [False, True])
+def test_similarity_only_run_without_trainable_classifier(
+    local_config, multi_positive, train_first
+):
     from osa_anurans_app.src.annotations import save_snapshot
     from osa_anurans_app.src.records import LabelCounts
 
@@ -412,7 +504,8 @@ def test_similarity_only_run_without_trainable_classifier(local_config, multi_po
     if multi_positive:
         labels.append(LabelCounts(row.window_id, "SECOND", 1))
     snapshot = save_snapshot(local_config.artifacts / "similarity-labels", labels, "test")
-    run = train_local(local_config, snapshot=snapshot)
+    model = train_local(local_config, snapshot=snapshot) if train_first else None
+    run = generate_candidates_local(local_config, model_directory=model, snapshot=snapshot)
     metadata = json.loads((run / "candidates.json").read_text())
     assert metadata["classifier_available"] is False
     assert metadata["count"] > 0

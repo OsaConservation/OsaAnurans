@@ -16,9 +16,10 @@ if TYPE_CHECKING:
 
 STEP_LABELS = {
     "import": "Import new audio",
-    "add-species": "Add species references and seed annotations",
+    "add-species": "Import labeled audio",
     "refresh": "Fetch latest annotations from BigQuery",
-    "train": "Train classifier and generate candidates",
+    "train": "Train classifier",
+    "generate": "Generate candidates",
     "publish": "Upload candidates to Google Cloud",
     "cleanup": "Remove unused cloud audio clips",
 }
@@ -26,19 +27,19 @@ STEP_LABELS = {
 
 @dataclass(frozen=True)
 class Workflow:
-    """Selected steps in execution order; uploads always use a newly trained run."""
+    """Selected steps in order; uploads always use a newly generated selection."""
 
     steps: tuple[str, ...]
     species_manifest: "SpeciesManifest | None" = None
 
     @classmethod
     def from_selection(cls, selected: list[str], species_manifest=None) -> "Workflow":
-        """Order steps, require a selection, and include training for uploads."""
+        """Order steps, require a selection, and include generation for uploads."""
         steps = set(selected)
         if not steps or steps - STEP_LABELS.keys():
             raise ValueError("Select at least one supported workflow step")
         if "publish" in steps:
-            steps.add("train")
+            steps.add("generate")
         return cls(tuple(step for step in STEP_LABELS if step in steps), species_manifest)
 
 
@@ -75,11 +76,12 @@ def workflow_labels(config) -> dict[str, str]:
     roots = ", ".join(str(path) for path in config.audio_roots)
     return {
         "import": f"Import new audio (from {roots})",
-        "add-species": f"Add species references and seed annotations (from {config.species_manifest_path})",
+        "add-species": f"Import labeled audio (from {config.species_manifest_path})",
         "refresh": "Fetch latest annotations Google BigQuery",
-        "train": f"Train classifier and generate candidates (save to {config.artifacts / 'runs'})",
-        "publish": "Upload candidates to Google Storage and BigQuery",
-        "cleanup": "Remove unused cloud audio clips (keep annotated and current candidate clips)",
+        "train": f"Train classifier (save results to {config.artifacts / 'runs'})",
+        "generate": f"Generate candidates (save to {config.artifacts / 'runs'})",
+        "publish": "Upload candidates to Google Storage and BigQuery (replace existing candidates list)",
+        "cleanup": "Remove unused cloud audio clips (current candidate clips)",
     }
 
 
@@ -158,7 +160,7 @@ def _workflow_menu(selected: list[str], config):
 
 def configure_workflow(config) -> Workflow | str | None:
     """Choose steps, review the plan, then start or return to editing."""
-    selected = ["refresh", "train"]
+    selected = ["refresh", "train", "generate"]
     manifest = None
     while True:
         selection = _workflow_menu(selected, config)
@@ -174,8 +176,8 @@ def configure_workflow(config) -> Workflow | str | None:
                 print(f"Cannot read species manifest {config.species_manifest_path}: {exc}")
                 continue
         workflow = Workflow.from_selection(selected, manifest)
-        if "publish" in selected and "train" not in selected:
-            print("Training included: upload uses the candidates from this new run.")
+        if "publish" in selected and "generate" not in selected:
+            print("Candidate generation included: upload uses this new selection.")
         selected = list(workflow.steps)
         display_workflow_review(workflow, config)
         decision = _select("Continue?", ["Start workflow", "Go back", "Cancel"])
@@ -191,7 +193,7 @@ def display_workflow_review(workflow: Workflow, config) -> None:
     for index, step in enumerate(workflow.steps, start=1):
         title = STEP_LABELS[step]
         if step == "refresh" and "add-species" in workflow.steps:
-            title = "Use annotations refreshed when adding species"
+            title = "Use annotations refreshed during labeled audio import"
         print(f"\n  {index}. {title}")
         if step == "import":
             print(f"     Read audio from: {', '.join(str(path) for path in config.audio_roots)}")
@@ -199,11 +201,31 @@ def display_workflow_review(workflow: Workflow, config) -> None:
             manifest = workflow.species_manifest
             print(f"     Read species from: {manifest.path}")
             for entry in manifest.entries:
-                print(f"     {entry.species_id}: {entry.common_name}")
-            count = len(manifest.entries)
-            print(
-                f"     Upload {count} reference clip{'s' if count != 1 else ''} and add presence labels."
-            )
+                print(
+                    f"     {entry.species_id}"
+                    + (f": {entry.common_name}" if entry.common_name else "")
+                )
+            present = sum(entry.response == "present" for entry in manifest.entries)
+            references = sum(entry.add_as_reference for entry in manifest.entries)
+            print(f"     Labels: {present} present, {len(manifest.entries) - present} absent.")
+            print(f"     References to upload or reuse: {references}.")
+        elif step == "train":
+            print("     Save the classifier and train/test results; no candidate generation.")
+        elif step == "generate":
+            if "train" in workflow.steps:
+                print(
+                    "     Use this workflow's training result; use similarity only if no classifier can be trained."
+                )
+            else:
+                from .pipeline import latest_classifier_run
+
+                model = latest_classifier_run(config)
+                if model is None:
+                    print("     No compatible classifier found; use similarity only.")
+                else:
+                    print(f"     Reuse classifier: {model.name}.")
+                if "import" in workflow.steps or "add-species" in workflow.steps:
+                    print("     Recheck model compatibility after importing audio.")
         elif step == "publish":
             print("     Uploading replaces the website's candidate queue.")
         elif step == "cleanup":
@@ -224,7 +246,7 @@ def choose_run(config) -> Path | None:
         reverse=True,
     )
     if not runs:
-        print("No saved candidate runs. Train a classifier first.")
+        print("No saved candidate runs. Generate candidates first.")
         return None
     choices = []
     for directory in runs:

@@ -8,13 +8,14 @@ Flow:
 
 Commands:
 - import: Save window WAVs and embeddings; optional CSV for one-time seed labels.
-- train: Train a classifier and save scored review candidates locally.
-- both: Run import, then train.
+- train: Train a classifier and save train/test results locally.
+- generate: Generate candidates using saved labels and an optional saved classifier.
+- both: Import audio, train, and generate candidates locally.
 - status: Show local catalog counts.
 - publish: Upload WAVs to GCS, insert BigQuery metadata, then replace candidates.
 - cleanup: Delete GCS window WAVs without current candidates or references.
 - refresh: Read BigQuery answers into a local label snapshot.
-- add-species: Add reference audio, local vectors, and cloud seed annotations.
+- add-species: Import labeled audio, local vectors, and optional cloud references.
 - inference: Reserved; not implemented.
 """
 
@@ -29,7 +30,7 @@ from pathlib import Path
 from .catalog import Catalog
 from .config import default_config, load_config
 from .console_ui import STEP_LABELS, Workflow, choose_run, configure_workflow
-from .pipeline import import_local, refresh_annotations, train_local
+from .pipeline import generate_candidates_local, import_local, refresh_annotations, train_local
 
 logger = logging.getLogger(__name__)
 
@@ -95,11 +96,19 @@ def parser() -> argparse.ArgumentParser:
             action="store_true",
             help="Skip unavailable/invalid audio and save an exclusion report",
         )
-    train = commands.add_parser(
-        "train", help="Train and generate local candidates from saved annotations"
-    )
-    train.add_argument("--snapshot", type=Path)
-    train.add_argument("--embedding-config")
+    for action, help_text in (
+        ("train", "Train a classifier and save train/test results"),
+        ("generate", "Generate candidates using a saved classifier or similarity only"),
+    ):
+        command = commands.add_parser(action, help=help_text)
+        command.add_argument("--snapshot", type=Path)
+        command.add_argument("--embedding-config")
+        if action == "generate":
+            command.add_argument(
+                "--model-directory",
+                type=Path,
+                help="Saved classifier run; defaults to the latest compatible model",
+            )
     commands.add_parser("status", help="Show local catalog counts")
     commands.add_parser("refresh", help="Fetch BigQuery answers and save a consensus snapshot")
     publish = commands.add_parser("publish", help="Replace cloud candidates with a saved local run")
@@ -112,9 +121,9 @@ def parser() -> argparse.ArgumentParser:
     )
     commands.add_parser("inference", help="Reserved for later implementation")
     add = commands.add_parser(
-        "add-species", help="Add reference audio and seed annotations to Google Cloud"
+        "add-species", help="Import labeled audio and optional references to Google Cloud"
     )
-    add.add_argument("--manifest", type=Path, required=True, help="JSON species/reference manifest")
+    add.add_argument("--manifest", type=Path, required=True, help="JSON labeled audio manifest")
     return result
 
 
@@ -224,14 +233,15 @@ def execute(args, config, interactive: bool = False) -> None:
     Order:
     1. Handle reserved, cloud, and status commands with early returns.
     2. For import/both, save window WAVs, embeddings, and CSV-derived labels.
-    3. For train/both, train a classifier and save scored review candidates.
+    3. Train and/or generate candidates as explicitly selected.
 
     Interactive mode:
     - Collect all workflow choices before processing starts.
     - No prompts during imports, annotation fetching, training, or uploads.
 
     Notes:
-    - Direct train/both commands use saved labels and keep candidates local.
+    - train saves results only; generate reuses a model without retraining.
+    - both retains the combined import/train/generate local workflow.
     """
     if args.action == "exit":
         return
@@ -273,6 +283,15 @@ def execute(args, config, interactive: bool = False) -> None:
             limit_recordings=getattr(args, "limit_recordings", None),
             skip_invalid=getattr(args, "skip_invalid", False),
         )
+    if args.action == "generate":
+        directory = generate_candidates_local(
+            config,
+            model_directory=args.model_directory,
+            snapshot=args.snapshot,
+            config_id=args.embedding_config,
+        )
+        print("Candidates saved:", directory)
+        return
     if args.action not in {"train", "both"}:
         return
     directory = train_local(
@@ -280,20 +299,24 @@ def execute(args, config, interactive: bool = False) -> None:
         snapshot=getattr(args, "snapshot", None),
         config_id=getattr(args, "embedding_config", None),
     )
-    print("Local run saved:", directory)
+    print("Training results saved:", directory)
+    if args.action == "both":
+        directory = generate_candidates_local(config, model_directory=directory)
+        print("Candidates saved:", directory)
 
 
 def execute_workflow(workflow: Workflow, config) -> None:
     """Run the confirmed plan in order; any failure stops subsequent steps.
 
     Rules:
-    - Publish only the run returned by this workflow's training step.
+    - Publish only the selection returned by this workflow's generation step.
     - Completed local artifacts are retained if a later step fails.
     - Never request more input after processing starts.
     """
     workflow = Workflow.from_selection(list(workflow.steps), workflow.species_manifest)
     refreshed = False
     directory = None
+    model_directory = None
     for index, step in enumerate(workflow.steps, start=1):
         print(flush=True)
         logger.info("Step %s/%s: %s", index, len(workflow.steps), STEP_LABELS[step])
@@ -308,12 +331,17 @@ def execute_workflow(workflow: Workflow, config) -> None:
             refreshed = True
         elif step == "refresh":
             if refreshed:
-                logger.info("Using the complete annotation snapshot fetched by Add species")
+                logger.info(
+                    "Using the complete annotation snapshot fetched by labeled audio import"
+                )
             else:
                 refresh_annotations(config, _annotation_store(config))
         elif step == "train":
-            directory = train_local(config)
-            print("Local run saved:", directory)
+            model_directory = train_local(config)
+            print("Training results saved:", model_directory)
+        elif step == "generate":
+            directory = generate_candidates_local(config, model_directory=model_directory)
+            print("Candidates saved:", directory)
         elif step == "publish":
             _execute_cloud(argparse.Namespace(action="publish", run_directory=directory), config)
         elif step == "cleanup":

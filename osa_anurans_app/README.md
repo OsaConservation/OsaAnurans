@@ -1,263 +1,91 @@
-# Osa Anurans classifier workflow
+﻿# Console app guide
 
-Local-first conversion of recordings into Perch v2 embeddings, five-second audio
-windows, annotation snapshots, a linear classifier, and review candidates.
-See [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for the design.
-Start with [CODE_REVIEW_GUIDE.md](CODE_REVIEW_GUIDE.md) for a reading order,
-key design decisions, and checks to use while reviewing the implementation.
+Import audio, fetch labels, train a classifier, and publish candidates for annotation.
+For the website and its local server, start with the [main README](../README.md).
 
-## Windows setup
+## Start the app
 
-Run from `C:\OsaAnurans`:
+Run from `C:\OsaAnurans` on Windows. Install Python 3.11, uv, and the Google Cloud
+CLI first.
 
 ```powershell
+# Install the locked dependencies.
 uv sync --project osa_anurans_app --locked
-```
 
-The app uses its own `.venv` and Python 3.11. The complete dependency lock
-includes bacpipe 1.3.5 and a Windows-compatible TensorFlow filesystem dependency.
-The first embedding run downloads the approximately 414 MB Perch checkpoint.
-The app automatically uses `config.local.toml` when it exists, otherwise
-`config.example.toml`. Copy the example to `config.local.toml` to customize
-paths/settings. Use `--config <path>` only to override this default.
-
-Open the interactive menu without entering a config path:
-
-```powershell
-osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli
-```
-
-Defaults read new audio recursively under `osa_anurans_app/inputs/audio-inbox`.
-Copy new recordings there; subdirectories are included. Labels come from BigQuery.
-Species manifests and their reference clips also live under `inputs`.
-Generated data, models, and logs live under `outputs`.
-Relative config paths resolve against the config directory.
-
-## First local run
-
-Import a small sample from the audio inbox:
-
-```powershell
-osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli --config osa_anurans_app/config.example.toml import --limit-recordings 10
-```
-
-Import all new audio, then fetch labels and train:
-
-```powershell
-osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli --config osa_anurans_app/config.example.toml import
-osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli --config osa_anurans_app/config.example.toml refresh
-osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli --config osa_anurans_app/config.example.toml train
-```
-
-Import and training are local; refresh reads BigQuery using local credentials.
-Audio-only imports preserve saved labels and leave new windows unknown.
-An empty inbox has nothing to import; existing data can still be used for training.
-An optional `annotations_csv` setting supports one-time seed imports.
-Run without an action for the interactive menu. Separate `import`, `train`, and
-`status` actions are also available. `train --snapshot <directory>
---embedding-config <id>` selects a particular saved dataset. Inference remains reserved;
-adding species references is available in the opening checklist.
-
-The opening screen shows the workflow checklist directly:
-
-- Use Up/Down to move, Space to toggle steps, and Enter to continue.
-- Continue and Exit are below the checklist.
-- Select import, fetch annotations, train, upload candidates, and/or remove unused cloud audio.
-- Fetch + train are selected by default; uploading and cleanup are unchecked.
-- Uploading automatically includes training so it uses the new run's candidates.
-- Cleanup runs after uploading when both are selected. It can also run on its own.
-- Review the plan and choose **Start workflow** or **Go back**. Esc cancels.
-- After starting, all selected steps run without prompts. A failure stops later
-  steps and keeps completed work.
-
-Epochs and candidates per species stay in the config file. To train with saved
-labels, uncheck fetching annotations. Uploading replaces the website's candidate queue and
-preserves existing annotations. Direct `train` and `both` commands remain local.
-
-The current Grillos inventory has 680 WAV files, about 24.8 hours of audio, one
-zero-byte WAV, and one CSV reference to a missing H75 file. Imports stop on invalid
-or missing input by default, before loading the model. To explicitly skip
-unavailable audio and save an exclusion report, add `--skip-invalid` after
-`import` or `both`. Input files are never modified. A full run produces about
-17,900 windows; FLOAT WAV output alone needs about 11.5 GB.
-
-`device = 'auto'` selects available acceleration and otherwise reports CPU.
-Explicit `cuda` fails if the relevant backend cannot activate it. The default
-locked ONNX Runtime package is CPU; GPU use requires compatible hardware and
-ONNX Runtime CUDA/PyTorch installations and has not been validated on this machine.
-
-## Inputs, outputs, and indexing
-
-```text
-inputs/
-  audio-inbox/                         # new recordings to ingest
-  species.json                         # configured species manifest (local)
-  species.example.json                 # example manifest to copy/edit
-  references/                          # five-second species reference clips
-outputs/
-  catalog.sqlite                       # local identities and embedding row index
-  checkpoints/perch_v2/
-  embeddings/perch_v2/<config>/<id>.npy # one array per recording
-  windows/v1/<window_id>.wav            # exact Perch input: 5s mono 32kHz FLOAT WAV
-  imports/<id>/import.json              # completed/skipped/failed recordings
-  imports/<id>/annotations/             # CSV, exclusions, consensus snapshot
-  annotations/<id>/                    # optional BigQuery snapshots
-  runs/<id>/                           # model, split, metrics, candidates.jsonl
-  latest.json                          # active embedding config and snapshot
-  pipeline.log                         # includes partial-overlap warnings
-```
-
-Recording IDs derive from file-content hashes; identical bytes share an identity
-and path aliases. Re-encoding changes identity. Window IDs use recording ID,
-source-sample bounds, and extraction policy. The last window uses bacpipe's wrap
-padding across the recording. Recording offsets are metadata: window playback
-starts at zero.
-
-The SQLite `window_embeddings` table is local only and maps a window/config to a
-`.npy` file and row. An embedding-model change does not itself change window ID.
-An import refuses to overwrite an existing waveform with different samples:
-preprocessing changes need an extraction-policy version change. Every generated
-window has local audio. Cloud media URIs belong to published candidates, not windows.
-
-Completed compatible artifacts are reused. Missing audio rebuilds its recording;
-interrupted work is retryable. Do not run concurrent imports into one artifact
-folder. Snapshots and classifier runs have unique directories.
-
-## Training rules
-
-- CSV columns: `audiofilename,start,end,label:species`. Any positive-duration
-  overlap establishes presence; unexpected partial overlap is logged. Unlabeled
-  regions remain unknown.
-- Initially use single-label multiclass softmax training. Exactly one positive
-  species per training window; exclude unknown, absent-only, and multi-positive
-  windows. At least two species must have training examples.
-- Use bacpipe's `LinearProbe` and `train_linear_probe` with our catalog-backed
-  dataloader and recording-level split. Epoch loss is logged by bacpipe; run
-  metrics store train/test classification results rather than loss history.
-- Target an approximately 80/20 recording split per species, with whole recordings
-  on one side. Prefer selections with representative window counts too.
-  A species with only one labeled recording stays entirely in training, with no
-  test metrics. Shared recordings can limit balance; training coverage takes priority.
-  Stable seeded ordering avoids reshuffling existing species when an unrelated
-  new species is added. This does not freeze a permanent test set as labels grow.
-  If no recording can be held out safely, train on all recordings and mark
-  held-out evaluation unavailable.
-- Select up to `candidates_per_species` candidates per species (default 100).
-  Similarity receives `similarity_balance / (similarity_balance + positive_recordings)`
-  of the allocation; the remaining candidates use classifier uncertainty.
-  Configure both under `[candidates]`; `similarity_balance` defaults to 25.
-  Count distinct recordings with present consensus, excluding held-out recordings.
-- Search local embeddings by maximum cosine similarity to positive seeds.
-  Exclude self-matching seeds from similarity results and held-out recordings
-  from both pools. Multi-positive windows can be seeds. No classifier is required
-  for similarity-only runs; species without positive seeds are skipped.
-  Similarity also excludes window/species pairs with present or absent consensus.
-  Unsure/tied answers remain eligible, and labels for other species do not exclude
-  a window. Classifier uncertainty may revisit ordinary annotated pairs.
-  Both methods exclude supplied reference/template seed pairs, identified by
-  annotator IDs `new-species` and `eoin-template-seed` in the snapshot's original
-  answers. These clips remain available for training and similarity seeds.
-- Deduplicate, refill shortages from the other pool, and put similarity first.
-  Save queue priority as `position / max(selected_count - 1, 1)` in `score`;
-  Cloud Run serves lower scores first. Raw similarity/uncertainty and counts stay
-  local in `candidate-selection.json`. Uploaded `selection_method` records
-  `similarity` or `uncertainty`; raw measurements are not uploaded.
-  Uncertainty remains `abs(2*p - 1)`, an uncalibrated multiclass heuristic.
-- Store independent species annotations so later multilabel training can use
-  explicit present/absent labels without changing window identities.
-
-## Optional cloud workflow (later)
-
-Local conversion never calls these actions automatically:
-
-```powershell
+# Sign in for cloud access. You do not need to repeat this for every run.
 gcloud auth application-default login
-osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli refresh
-osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli train
-osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli publish <run-directory>
-# Optional: upload and then remove unused cloud clips.
-osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli publish <run-directory> --cleanup
-# Cleanup only, including retrying an interrupted cleanup.
-osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli cleanup
+
+# Open the menu.
+.\osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli
 ```
 
-Confirm configured destinations before use. `publish <run-directory>` reads the saved
-candidate file and uploads only its unique windows' pending audio to
-`gs://osa-frog-data/windows/v1/<window_id>.wav`, verifies checksums, then inserts
-missing recording/window metadata. Shared windows are uploaded once; unrelated
-local windows remain local. It then replaces the cloud candidate queue.
+- You need access to the project's BigQuery dataset and GCS bucket for cloud steps.
+- The first embedding run downloads about 414 MB of Perch model weights.
+- The default installation supports CPU. CUDA needs a compatible GPU setup.
+- Settings come from `config.local.toml` when present, otherwise `config.example.toml`.
 
-`refresh` counts every present/absent annotator answer per window/species, ignores
-unsure, and saves strict-majority consensus locally. Ties stay unknown. It neither
-joins current candidates nor merges initial CSV labels back into the snapshot.
-Unmatched window IDs are reported, including absent/unsure-only pairs.
-Annotation refresh requires BigQuery access only; GCS access is checked for publication.
+## Choose a workflow
 
-`publish` first uploads/registers only windows referenced by that saved run's
-candidate file. It stages and validates candidates, then truncates/inserts them in one
-BigQuery transaction. Existing annotations/windows/media remain; embeddings are
-never uploaded. A bulk GCS listing detects missing clips even when SQLite marks
-them registered; publication restores selected audio before replacing candidates.
-Cloud adapters have fake-client tests and have passed a live migration integration
-check covering uploads, metadata, replacement SQL, API pagination, and submission.
-See VALIDATION.md; those temporary cloud fixtures were removed afterward.
+- **Import new audio:** read recordings from `inputs/audio-inbox/`; save five-second clips and embeddings locally.
+- **Import labeled audio:** read `inputs/species.json`; add labels and optional references to Google Cloud.
+- **Fetch latest annotations:** save BigQuery votes as a local label snapshot.
+- **Train classifier:** save the model and train/test results locally. Do not generate candidates.
+- **Generate candidates:** use current labels and the new or latest compatible saved classifier; save a separate selection locally. Without a classifier, use similarity only.
+- **Upload candidates:** upload selected clips and replace the website's candidate queue. Existing annotations stay.
+- **Remove unused cloud audio clips:** delete window clips without current candidates or references. Keep local files and BigQuery metadata/annotations.
 
-`cleanup` removes only canonical `<window_id>.wav` objects under the configured
-window prefix without a current candidate or reference. Annotation-only clips are removed.
-It also finds GCS-only orphans left by interrupted uploads. References, local
-WAVs/embeddings, and BigQuery recordings/windows/annotations are preserved.
-Progress shows removed clips and bytes; `cloud-cleanup.json` records standalone
-cleanup results, or `cleanup.json` beside the published run when run after upload.
-After cleanup, the console also shows GCS active/soft-deleted storage and BigQuery
-logical table storage in decimal GB. Totals are saved in the cleanup report.
-BigQuery metadata can lag recent writes; this is stored table data, not query usage.
+Use **Up/Down** to move, **Space** to toggle, and **Continue** to review your choices.
+Choose **Start workflow** to run everything without more prompts. **Esc** cancels.
 
-Cleanup uses the current candidate queue, with no grace period. Historical answers
-train from local embeddings and do not retain cloud audio. An old browser batch may
-lose media after queue replacement; its answers can still be submitted. Missing
-current candidate clips are repaired when local audio is available. GCS soft-deleted bytes
-remain until the bucket's retention period expires; cleanup does not change that policy.
+- Fetch + train + generate are selected by default.
+- Uploading automatically includes generation, but does not force training.
+- For evaluation only, select **Train classifier** and uncheck generation/upload.
+- To reuse a saved model, select **Generate candidates** without training.
+- To train from saved labels, uncheck fetching.
+- A failed step stops the workflow; completed work is kept for retry.
 
-Uploads and cleanup share a create-only GCS lock so they cannot overlap across
-computers. Completed actions and handled errors release it. Ctrl+C, a process
-crash, or shutdown leaves it in place because a submitted BigQuery job may still
-be running. First verify no cloud operation or outstanding BigQuery job is running,
-then remove `gs://<bucket>/<prefix>/.publication.lock` before retrying.
-Retrying a run interrupted during cleanup preserves the current cloud queue.
-Use `publish <run-directory> --cleanup` to resume its cleanup, or run `cleanup`
-directly without training. Without that option, publish retries do not delete clips.
+### Example: import recordings and update the website
 
-The limit applies when generating a new run. Older candidate files remain unchanged;
-retrain to create a file with the configured limit before uploading it.
+1. Copy recordings into `osa_anurans_app/inputs/audio-inbox/`. Subfolders work too.
+2. Open the app.
+3. Select **Import new audio**, **Fetch latest annotations**, **Train**, **Generate candidates**, and **Upload**.
+4. Review the plan and start.
+5. Open the website to label the new candidates.
 
-Cloud and local records use the same window IDs, with no ID translation.
-The deployed API uses standalone window audio; the updated frontend source uses
-zero-based playback/spectrogram bounds and keeps recording offsets as metadata.
-Frontend changes still need a GitHub push before any website publication.
+New recordings start with unknown labels. Importing audio does not assume a species
+is absent. Completed imports are reused on later runs.
 
-## Tests
+## Import labeled clips or add a species
 
-```powershell
-osa_anurans_app\.venv\Scripts\python.exe -m pytest osa_anurans_app/tests -q
-osa_anurans_app\.venv\Scripts\ruff.exe check osa_anurans_app/src osa_anurans_app/tests
-osa_anurans_app\.venv\Scripts\ruff.exe format --check osa_anurans_app/src osa_anurans_app/tests
+Edit `osa_anurans_app/inputs/species.json`, then choose **Import labeled audio**.
+
+- Use WAV or MP3 clips that are **exactly five seconds** long.
+- Audio paths are relative to the JSON file; absolute paths also work.
+- Use a species ID for an existing species, or scientific/common names to declare one.
+- Use `present` or `absent`. Labels for other species remain unknown.
+- Set `add_as_reference` to `true` to show a present clip in the website's reference carousel.
+- A new species needs at least one present reference in the batch.
+
+### Example: label clips for an existing species
+
+```json
+{
+  "species": [
+    {
+      "species_id": "SCIBOU",
+      "audio": "labeled-audio/scibou-present.wav",
+      "response": "present"
+    },
+    {
+      "species_id": "SCIBOU",
+      "audio": "labeled-audio/scibou-absent.wav",
+      "response": "absent"
+    }
+  ]
+}
 ```
 
-Routine integration tests use real WAV files and an injected lightweight embedding
-backend: no checkpoint download or cloud access. They cover exact row/audio
-alignment, cache recovery, voting, grouped training, model reload, all candidate
-pairs, and publication failures.
-## Add species references
-
-Select **Add species references and seed annotations** in the opening menu, then
-read the configured JSON manifest. Review the names and cloud destinations before starting.
-This step is unchecked by default. It writes seed/reference data to Google Cloud
-even when candidate upload is unchecked; it preserves the existing candidate queue.
-
-The menu and workflow review show the configured manifest path; no path entry is needed.
-The default is `osa_anurans_app/inputs/species.json`; configure it with
-`paths.species_manifest`. Use [inputs/species.example.json](inputs/species.example.json)
-as the input format:
+### Example: add a species with a reference clip
 
 ```json
 {
@@ -265,67 +93,133 @@ as the input format:
     {
       "scientific_name": "Smilisca phaeota",
       "common_name": "New Granada cross-banded treefrog",
-      "reference_audio": "references/smilisca-phaeota.mp3"
+      "audio": "references/smilisca-phaeota.mp3",
+      "response": "present",
+      "add_as_reference": true
     }
   ]
 }
 ```
 
-- WAV or MP3, exactly five decoded seconds; finite, nonzero mono signal required.
-- Relative audio paths resolve beside the manifest; absolute paths also work.
-- Scientific names use two alphabetic words. IDs use the first three letters of
-  each word, e.g. `Smilisca phaeota` → `SMIPHA`.
-- Matching existing species may receive another reference or a missing seed.
-  Conflicting IDs/names fail; existing metadata is never overwritten.
-- Multiple references may repeat a species with matching names and distinct audio.
-  Matching prepared audio for the same species is rejected before cloud uploads,
-  even when source files use different encodings.
-- Reviewed input changes stop the workflow. Source files are never edited.
+- IDs use the first three letters of each scientific-name word: `Smilisca phaeota` becomes `SMIPHA`.
+- Matching species are reused; conflicting names/IDs are rejected.
+- Embeddings and window clips are saved locally. Only reference clips are uploaded during this step.
+- Labels are written to BigQuery, then all annotations are fetched. A separate fetch step reuses that result.
+- This step writes to the cloud **even when candidate upload is unchecked**; it keeps the current queue.
+- References use annotator ID `new-species`; label-only clips use `labeled-audio-import`.
+- Reimporting identical files adds no votes. Moving a file is fine; re-encoding changes its identity.
+- Editing an imported answer or changing its reference status is not supported yet.
 
-The action saves local embeddings and exact model-input WAVs. Cloud audio goes to
-`references/<species>/<reference>.wav`. Seed window clips stay local until selected
-as candidates; adding a reference does not upload a redundant window copy.
-Existing references are reused after comparing their audio; their IDs, URIs, and
-spectrograms are preserved. When a reference has no spectrogram URL, the website
-generates one from its audio using the same renderer as candidate spectrograms.
+## Settings and files
 
-One stable `present` annotation per species/window is added with annotator
-`new-species`. Rerunning the same inputs preserves votes and creation timestamps.
-All metadata is committed in one transaction under the publication/cleanup lock.
-Failures retain local files and uploaded objects for retry; progress/errors are
-recorded in `outputs/species-imports/<attempt>/receipt.json`.
+To customize settings, copy `config.example.toml` to `config.local.toml` if you do
+not already have one. Paths in that file are relative to its directory.
 
-After committing, the action fetches the complete BigQuery annotation snapshot.
-A separately selected refresh step reuses that result. Training stops if add or
-refresh fails. Nonempty local CSV label snapshots must be seeded to BigQuery first.
-The active corpus embedding configuration must match the reference backend.
-Reference-only workspaces still need corpus audio to produce useful candidates.
+```toml
+[paths]
+audio_roots = ['inputs/audio-inbox']
+species_manifest = 'inputs/species.json'
+artifacts = 'outputs'
 
-```powershell
-# Add only (explicit cloud write; no training or candidate publication).
-.\osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli add-species --manifest osa_anurans_app\inputs\species.json
+[training]
+epochs = 50
+device = 'auto'
+
+[candidates]
+candidates_per_species = 100
+similarity_balance = 25
 ```
 
-Menu combinations:
+- Edit the existing sections in your config; keep its cloud settings.
+- Epochs and candidate limits are config settings, not menu options.
+- Change the output directory only when you intend to use a different local dataset.
 
-- **Add species**: prepare references, upload metadata/seed votes, refresh labels.
-- **Add species + Train**: also generate a new local candidate run.
-- **Add species + Train + Upload**: also publish that new candidate run.
+```text
+osa_anurans_app/
+  inputs/
+    audio-inbox/          New recordings
+    species.json          Labeled-audio manifest
+    references/           Reference clips you supply
+    labeled-audio/        Other labeled clips you supply
+  outputs/
+    catalog.sqlite        Recording/window IDs and embedding locations
+    checkpoints/          Cached Perch model
+    embeddings/           Local vectors
+    windows/v1/           Five-second audio clips
+    annotations/          Saved BigQuery votes and consensus
+    runs/                 Separate runs for models/results and candidate selections
+    imports/              Audio import reports
+    species-imports/      Labeled-audio import receipts
+    pipeline.log          Progress and errors
+```
 
+- Keep `outputs/`: training depends on its local embeddings.
+- Embeddings are never uploaded to Google Cloud.
+- Identical recording bytes share an ID. Windows use that ID and their source bounds.
+- Short final windows repeat audio to reach five seconds; standalone playback starts at zero.
+- Run one import at a time per output directory.
 
-### Candidate media schema cutover
+## How labels and candidates work
 
-The new app requires media/source fields on candidates and metadata-only windows.
-Do not run cloud writers against the old schema. Pause publication, cleanup,
-add-species, and seed scripts until the cutover is complete:
+- **Consensus:** count present vs. absent votes; ignore unsure. A strict majority wins; ties stay unknown. Repeated submissions count as additional votes.
+- **Training:** use windows with exactly one present species. Unknown, absent-only, and multiple-present windows are excluded.
+- **Test split:** keep whole recordings together, targeting roughly 80% training / 20% test per species. Single-recording species stay in training and have no held-out metrics.
+- **Similarity:** find clips close to positive examples in embedding space.
+- **Uncertainty:** find clips the classifier is less certain about. This is a heuristic, not calibrated confidence.
+- **Mix:** fewer positive recordings means more similarity candidates. The default similarity fraction is `25 / (25 + positive_recordings)`.
+- **Exclusions:** similarity skips clips already labeled present or absent for that species. Uncertainty may revisit ordinary labels. Both skip test recordings and supplied reference/template clips for that species.
+- **Small datasets:** if there are too few classes to train, report that no classifier was trained. Candidate generation can still use similarity only.
+- **Serving:** saved scores represent queue rank. The API samples with a preference for lower scores; separate website sessions can receive different orders.
 
-1. Run `structs/migrate_candidate_media.sql` to snapshot tables and backfill candidates.
-2. Check actual selected GCS objects, repairing missing clips before cleanup.
-3. Deploy the updated API and install the updated app, keeping cloud writers paused.
-4. Run `structs/drop_window_media.sql` after checking the backfill and API responses.
-5. Resume writers; enable cleanup only after checking the current queue/media.
+## Individual commands
 
-Saved local selection JSONL files remain supported. Publication creates a separate
-`candidate-upload.jsonl` with verified audio URIs and copied source metadata.
-Rollback after column removal requires restoring the window columns/data from the
-snapshot before running old code. Keep cleanup disabled during rollback.
+Use these instead of the menu when you want one step. All examples run from the
+repository root.
+
+```powershell
+# Import a small sample locally.
+.\osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli import --limit-recordings 10
+
+# Fetch votes, then train locally.
+.\osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli refresh
+.\osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli train
+
+# Generate candidates separately, reusing the latest compatible classifier.
+.\osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli generate
+
+# Import labeled audio and optional references.
+.\osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli add-species --manifest osa_anurans_app/inputs/species.json
+
+# Replace RUN_ID with a directory created by candidate generation.
+.\osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli publish osa_anurans_app/outputs/runs/RUN_ID
+
+# Remove unused cloud window clips.
+.\osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli cleanup
+```
+
+- `train` never publishes by itself.
+- `generate` never trains. Use `generate --model-directory path/to/model-run` to choose a particular saved classifier.
+- Generation reads the current labels and preserves the saved model's original test-recording exclusions. It creates a new selection without overwriting earlier runs.
+- Add `--cleanup` to `publish` to clean up after uploading.
+- Add `--skip-invalid` to `import` to skip bad audio and save an exclusion report.
+- Global options go before the command: `...src.cli --config path/to/config.toml train`.
+
+## Cloud behavior and recovery
+
+- Publication uploads only selected candidate clips, verifies them, and inserts missing recording/window metadata before replacing the queue.
+- Cleanup protects current candidates and references. Annotation-only cloud clips can be deleted because training uses local embeddings.
+- An old website batch can lose its audio after queue replacement and cleanup; its answers can still be submitted.
+- Cleanup reports removed bytes plus current GCS and BigQuery storage. Soft-deleted GCS bytes remain until retention expires.
+- Cloud writers share a GCS lock. After an interrupted run, confirm no app or BigQuery job is still writing before removing a stale `.publication.lock` object.
+- Do not rerun publication just to retry cleanup; run `cleanup` directly.
+- Current code expects candidate media/source fields. Reference ordering also needs the `display_order` column. Migration SQL is in [structs/](structs/); production has already been migrated.
+
+## Run checks
+
+```powershell
+.\osa_anurans_app\.venv\Scripts\python.exe -m pytest osa_anurans_app/tests -q
+.\osa_anurans_app\.venv\Scripts\python.exe -m ruff check osa_anurans_app/src osa_anurans_app/tests
+```
+
+- Tests use small test embeddings and fake cloud clients; they do not write production data.
+- Source starts in [src/cli.py](src/cli.py), [src/pipeline.py](src/pipeline.py), and [src/species.py](src/species.py).

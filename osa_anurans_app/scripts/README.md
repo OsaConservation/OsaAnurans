@@ -10,6 +10,7 @@ Use the same seed config for every command below:
 .\osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.scripts.seed_grillos --config osa_anurans_app/artifacts/grillos-seed-config.toml
 .\osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli --config osa_anurans_app/artifacts/grillos-seed-config.toml refresh
 .\osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli --config osa_anurans_app/artifacts/grillos-seed-config.toml train
+.\osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli --config osa_anurans_app/artifacts/grillos-seed-config.toml generate
 ```
 
 - Import generates all local WAVs, embeddings, and CSV presence labels.
@@ -19,8 +20,10 @@ Use the same seed config for every command below:
 - Metadata and annotation IDs are reusable; retrying does not add votes.
 - Seed does not replace candidates or delete existing data.
 - Refresh reads BigQuery votes; train reads that snapshot and local embeddings.
+- Train saves the model and metrics; generate saves a separate candidate selection.
 - After refresh, training needs neither this script nor the original Grillos folder.
 - Keep the catalog, embedding arrays, and local WAVs for future training/publication.
 - To retry seed after refresh, first rerun import to select the CSV snapshot again.
 
-Publishing the resulting candidates remains an explicit, separate CLI command.
+Publish the directory returned by generate, not the training directory.
+Publication remains an explicit, separate CLI command.

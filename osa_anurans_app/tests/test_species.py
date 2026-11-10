@@ -70,23 +70,28 @@ class SpeciesBQ:
 
     def delete_table(self, destination, **kwargs):
         self.deleted.append(destination)
+        table = next(table for table in TABLE_KEYS if f"_species_{table}_" in destination)
+        self.staging.pop(table, None)
 
-    def _query(self, sql):
+    def _query(self, sql, parameters=()):
         if sql.startswith("SELECT *"):
+            if "UNNEST(@window_ids)" in sql:
+                return deepcopy(self.tables["annotations"])
             table = sql.split(".")[-1].rstrip("`")
             return deepcopy(self.tables[table])
         assert sql.startswith("BEGIN TRANSACTION;")
         assert sql.rstrip().endswith("COMMIT TRANSACTION;")
         assert "TRUNCATE" not in sql
         assert "Scientific name already has another species ID" in sql
-        assert sql.count("Duplicate existing") == 5
-        assert sql.count("Conflicting existing") == 5
+        assert sql.count("Duplicate existing") == len(self.staging)
+        assert sql.count("Conflicting existing") == len(self.staging)
         assert "IS DISTINCT FROM" in sql
         if self.fail:
             raise RuntimeError("transaction failed")
         result = deepcopy(self.tables)
+        species.check_import_conflicts(self, self.staging["annotations"])
         for table, key in TABLE_KEYS.items():
-            for row in self.staging[table]:
+            for row in self.staging.get(table, []):
                 found = [old for old in result[table] if old[key] == row[key]]
                 if len(found) > 1 or any(
                     old.get(field) != value
@@ -178,6 +183,264 @@ def run(setup, **kwargs):
         storage=storage,
         **kwargs,
     )
+
+
+def write_labels(setup, rows):
+    """Use the real manifest parser and import pipeline for explicit label tests."""
+    setup[1].write_text(json.dumps({"species": rows}), encoding="utf-8")
+
+
+def existing_species(setup):
+    setup[3].tables["species"].append(
+        {"species_id": "SMIPHA", "scientific_name": "Smilisca phaeota", "common_name": "Test frog"}
+    )
+
+
+@pytest.mark.parametrize("response", ["present", "absent"])
+def test_label_only_import_and_retry_need_no_cloud_audio(setup, response):
+    from osa_anurans_app.src.annotations import load_reference_seed_pairs
+
+    existing_species(setup)
+    config, _, audio, bq, storage = setup
+    bq.tables["candidates"] = [{"candidate_id": "keep-existing-queue"}]
+    write_labels(setup, [{"species_id": "SMIPHA", "audio": audio.name, "response": response}])
+    snapshot = run(setup)
+    original = deepcopy(bq.tables)
+    run(setup)
+    assert bq.tables == original
+    assert bq.tables["candidates"] == [{"candidate_id": "keep-existing-queue"}]
+    assert len(bq.tables["annotations"]) == len(bq.tables["windows"]) == 1
+    assert not bq.tables["reference_media"]
+    assert storage.writes == 0
+    vote = bq.tables["annotations"][0]
+    assert vote["response"] == response
+    assert vote["annotator_id"] == "labeled-audio-import"
+    assert not load_reference_seed_pairs(snapshot)
+    with Catalog(config.artifacts / "catalog.sqlite") as catalog:
+        assert len(catalog.embedding_rows(TinyBackend.config_id)) == 1
+        assert not catalog.pending_windows()
+
+
+def test_changed_import_response_is_rejected_without_another_vote(setup):
+    existing_species(setup)
+    _, _, audio, bq, storage = setup
+    row = {"species_id": "SMIPHA", "audio": audio.name, "response": "present"}
+    write_labels(setup, [row])
+    run(setup)
+    before = deepcopy(bq.tables)
+    write_labels(setup, [{**row, "response": "absent"}])
+    with pytest.raises(ValueError, match="Conflicting existing imported response"):
+        run(setup)
+    assert bq.tables == before
+    assert storage.writes == 0
+
+
+@pytest.mark.parametrize("reference_first", [True, False])
+def test_reference_status_changes_do_not_add_a_second_vote(setup, reference_first):
+    existing_species(setup)
+    _, _, audio, bq, storage = setup
+    row = {"species_id": "SMIPHA", "audio": audio.name, "response": "present"}
+    write_labels(setup, [{**row, "add_as_reference": reference_first}])
+    run(setup)
+    before, writes = deepcopy(bq.tables), storage.writes
+    write_labels(setup, [{**row, "add_as_reference": not reference_first}])
+    with pytest.raises(ValueError, match="changing its reference status"):
+        run(setup)
+    assert bq.tables == before
+    assert storage.writes == writes
+
+
+@pytest.mark.parametrize("reverse", [True, False])
+def test_mixed_named_and_id_entries_resolve_new_species_in_either_order(setup, reverse):
+    config, _, audio, bq, storage = setup
+    second = audio.with_name("second.wav")
+    sf.write(second, np.full(160_000, 0.4, dtype=np.float32), 32_000, subtype="FLOAT")
+    rows = [
+        {
+            "scientific_name": "Smilisca phaeota",
+            "common_name": "Test frog",
+            "audio": audio.name,
+            "response": "present",
+            "add_as_reference": True,
+        },
+        {"species_id": "SMIPHA", "audio": second.name, "response": "absent"},
+    ]
+    write_labels(setup, rows[::-1] if reverse else rows)
+    run(setup)
+    assert len(bq.tables["species"]) == len(bq.tables["reference_media"]) == 1
+    assert len(bq.tables["annotations"]) == 2
+    assert storage.writes == 1
+    assert sorted(row["response"] for row in bq.tables["annotations"]) == ["absent", "present"]
+    with Catalog(config.artifacts / "catalog.sqlite") as catalog:
+        assert len(catalog.embedding_rows(TinyBackend.config_id)) == 2
+
+
+@pytest.mark.parametrize(
+    "rows,error",
+    [
+        ([{"species_id": "MISSING", "response": "present"}], "Unknown or duplicate"),
+        (
+            [
+                {
+                    "scientific_name": "Smilisca phaeota",
+                    "common_name": "Test frog",
+                    "response": "present",
+                }
+            ],
+            "New species require a present reference",
+        ),
+        (
+            [{"species_id": "SMIPHA", "response": "absent", "add_as_reference": True}],
+            "requires a present",
+        ),
+        ([{"species_id": "SMIPHA", "response": "unsure"}], "response must"),
+        (
+            [{"species_id": "SMIPHA", "response": "present", "add_as_reference": 1}],
+            "must be boolean",
+        ),
+        (
+            [
+                {
+                    "species_id": "SMIPHA",
+                    "scientific_name": "Smilisca phaeota",
+                    "common_name": "Test frog",
+                    "response": "present",
+                }
+            ],
+            "Expected fields",
+        ),
+    ],
+)
+def test_invalid_explicit_labels_never_write_cloud_data(setup, rows, error):
+    _, _, audio, bq, storage = setup
+    write_labels(setup, [{**row, "audio": audio.name} for row in rows])
+    with pytest.raises(ValueError, match=error):
+        run(setup)
+    assert bq.commits == storage.writes == 0
+
+
+def test_duplicate_named_id_pair_and_contradictory_labels_are_rejected(setup):
+    _, _, audio, _, _ = setup
+    write_labels(
+        setup,
+        [
+            {
+                "scientific_name": "Smilisca phaeota",
+                "common_name": "Test frog",
+                "audio": audio.name,
+                "response": "present",
+                "add_as_reference": True,
+            },
+            {"species_id": "SMIPHA", "audio": audio.name, "response": "absent"},
+        ],
+    )
+    with pytest.raises(ValueError, match="Duplicate species/audio pair"):
+        run(setup)
+
+
+def test_explicit_reference_keeps_legacy_vote_identity(setup):
+    run(setup)
+    before = deepcopy(setup[3].tables)
+    write_labels(
+        setup,
+        [
+            {
+                "species_id": "SMIPHA",
+                "audio": setup[2].name,
+                "response": "present",
+                "add_as_reference": True,
+            }
+        ],
+    )
+    run(setup)
+    assert setup[3].tables == before
+
+
+def test_label_only_refresh_failure_can_be_retried(setup):
+    existing_species(setup)
+    write_labels(setup, [{"species_id": "SMIPHA", "audio": setup[2].name, "response": "present"}])
+    bq = setup[3]
+    bq.refresh_fail = True
+    with pytest.raises(RuntimeError, match="refresh failed"):
+        run(setup)
+    assert len(bq.tables["annotations"]) == 1
+    bq.refresh_fail = False
+    run(setup)
+    assert len(bq.tables["annotations"]) == 1
+
+
+def test_multiple_label_only_species_share_one_embedding(setup):
+    from osa_anurans_app.src.annotations import load_reference_seed_pairs
+
+    existing_species(setup)
+    config, _, audio, bq, storage = setup
+    bq.tables["species"].append(
+        {"species_id": "BOAROS", "scientific_name": "Boana rosenbergi", "common_name": "Other frog"}
+    )
+    write_labels(
+        setup,
+        [
+            {"species_id": species_id, "audio": audio.name, "response": "present"}
+            for species_id in ["SMIPHA", "BOAROS"]
+        ],
+    )
+    snapshot = run(setup)
+    assert len(bq.tables["annotations"]) == 2
+    assert len(bq.tables["windows"]) == len(bq.tables["recordings"]) == 1
+    assert not load_reference_seed_pairs(snapshot)
+    assert storage.writes == 0
+    with Catalog(config.artifacts / "catalog.sqlite") as catalog:
+        assert len(catalog.embedding_rows(TinyBackend.config_id)) == 1
+
+
+def test_template_seed_cannot_receive_another_imported_vote(setup):
+    run(setup)
+    bq, storage = setup[3:]
+    bq.tables["annotations"][0]["annotator_id"] = "eoin-template-seed"
+    before = deepcopy(bq.tables)
+    write_labels(setup, [{"species_id": "SMIPHA", "audio": setup[2].name, "response": "present"}])
+    with pytest.raises(ValueError, match="changing its reference status"):
+        run(setup)
+    assert bq.tables == before
+    assert storage.writes == 1
+
+
+def test_website_votes_do_not_block_imported_labels(setup):
+    existing_species(setup)
+    write_labels(setup, [{"species_id": "SMIPHA", "audio": setup[2].name, "response": "present"}])
+    run(setup)
+    bq = setup[3]
+    imported = bq.tables["annotations"].pop()
+    bq.tables["annotations"].append(
+        {
+            **imported,
+            "annotation_id": "website-vote",
+            "annotator_id": "website-annotator",
+            "response": "absent",
+        }
+    )
+    run(setup)
+    assert len(bq.tables["annotations"]) == 2
+    assert sorted(row["response"] for row in bq.tables["annotations"]) == ["absent", "present"]
+
+
+def test_label_only_import_skips_reference_access(setup, monkeypatch):
+    existing_species(setup)
+    bq = setup[3]
+    query, get_table = bq._query, bq.get_table
+
+    def check_query(sql, parameters=()):
+        assert "reference_media" not in sql
+        return query(sql, parameters)
+
+    def check_table(name):
+        assert not name.endswith(".reference_media")
+        return get_table(name)
+
+    monkeypatch.setattr(bq, "_query", check_query)
+    monkeypatch.setattr(bq, "get_table", check_table)
+    write_labels(setup, [{"species_id": "SMIPHA", "audio": setup[2].name, "response": "present"}])
+    run(setup)
 
 
 def test_add_and_retry_preserve_votes_timestamps_and_complete_snapshot(setup):
@@ -363,7 +626,7 @@ def test_name_normalization_duplicates_and_multiple_references(setup):
     assert species.load_manifest(path).entries[0].species_id == "SMIPHA"
     data["species"].append(data["species"][0].copy())
     path.write_text(json.dumps(data))
-    with pytest.raises(ValueError, match="Duplicate species/reference"):
+    with pytest.raises(ValueError, match="Duplicate species/audio"):
         species.load_manifest(path)
     second = audio.with_name("second.wav")
     sf.write(second, np.full(160_000, 0.4, dtype=np.float32), 32_000, subtype="FLOAT")
@@ -461,7 +724,7 @@ def test_supplied_mp3_templates_decode_as_five_seconds():
 
 
 def test_add_then_train_uses_corpus_and_excludes_seed(setup):
-    from osa_anurans_app.src.pipeline import import_local, train_local
+    from osa_anurans_app.src.pipeline import generate_candidates_local, import_local, train_local
 
     config, _, audio, bq, _ = setup
     inbox = config.audio_roots[0]
@@ -470,6 +733,7 @@ def test_add_then_train_uses_corpus_and_excludes_seed(setup):
     import_local(config, backend=TinyBackend())
     run(setup)
     directory = train_local(config)
+    directory = generate_candidates_local(config, model_directory=directory)
     rows = [json.loads(line) for line in (directory / "candidates.jsonl").read_text().splitlines()]
     seed_id = bq.tables["annotations"][0]["window_id"]
     assert len(rows) == 3
@@ -524,7 +788,8 @@ def test_menu_reads_configured_manifest_without_path_prompt(setup, monkeypatch, 
     output = capsys.readouterr().out
     assert f"Read species from: {path}" in output
     assert "SMIPHA" in output
-    assert "Upload 1 reference clip and add presence labels." in output
+    assert "Labels: 1 present, 0 absent." in output
+    assert "References to upload or reuse: 1." in output
     assert "gs://" not in output
     assert config.dataset not in output
     assert not config.artifacts.exists()

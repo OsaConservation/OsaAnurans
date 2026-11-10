@@ -83,7 +83,7 @@ def get_references(species_ids):
         SELECT reference_id, species_id, audio_gcs_uri, spectrogram_gcs_uri
         FROM `{PROJECT_ID}.{DATASET_ID}.reference_media`
         WHERE species_id IN UNNEST(@species_ids)
-        ORDER BY species_id, reference_id
+        ORDER BY species_id, COALESCE(display_order, 1), reference_id
     '''
     rows = settings.read_rows(query, [
         bigquery.ArrayQueryParameter('species_ids', 'STRING', species_ids),

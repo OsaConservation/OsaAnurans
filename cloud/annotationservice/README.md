@@ -4,15 +4,15 @@ A Python **Cloud Run function** that serves species, reference media, and candid
 from BigQuery and accepts annotation batches. Its HTTP entry point is
 `annotationservice` in `main.py`; submission handling lives in `annotate.py`.
 
-For the frontend implementation task, read
-[FRONTEND_INTEGRATION.md](FRONTEND_INTEGRATION.md), which now focuses on loading
-candidate batches for annotation, pagination, playback, and acceptance checks.
-Species and reference integration is already complete.
+All data endpoints require a four-hour annotator bearer token. The website
+exchanges the shared password at `/auth/login` and sends
+`Authorization: Bearer <access_token>` with API requests.
 
-All data endpoints now require a four-hour reviewer bearer token. Read
-[REVIEWER_ACCESS.md](REVIEWER_ACCESS.md) for the shared-password endpoint,
-frontend adoption instructions, and required Cloud Run secret configuration.
-This change needs deployment together with the frontend password gate.
+- Configure `ANNOTATOR_PASSWORD` (12–1024 characters) and `ANNOTATOR_TOKEN_SECRET`
+  (at least 32 UTF-8 bytes) through Cloud Run secrets.
+- Missing configuration rejects access. Login does not query BigQuery.
+- See the [website guide](../../README.md) and [console app guide](../../osa_anurans_app/README.md)
+  for the complete workflow.
 
 ## Source layout
 
@@ -26,13 +26,13 @@ This change needs deployment together with the frontend password gate.
 | `media.py` | Credentials and per-response signed media URLs |
 | `annotate.py` | Basic request checks and one parameterized annotation INSERT |
 
-Requests require Authorization: Bearer. Species rows include `annotation_counts`
+Requests require Authorization: Bearer. By default, species rows include `annotation_counts`
 with `positive`, `negative`, `unsure`, and `total` integers. Counts include seed
 annotations and every saved vote, including repeated submissions. All species
 are returned by the unfiltered endpoint, with zeros for species without votes.
 Annotation payloads include
 window_id and query_species_id; repeated submissions append duplicates for
-downstream cleaning. See ANNOTATION_SUBMISSIONS.md before updating the frontend.
+consensus counting. Repeated votes are counted; unsure votes are ignored for consensus.
 
 ## Cloud configuration
 
@@ -85,8 +85,8 @@ This checks catalog metadata, not object existence in GCS, and does not require
 a spectrogram. Candidate recording audio does not qualify as reference audio.
 Annotation counts are included with or without these filters.
 
-`has_candidates=true` additionally requires a candidate joined to a window with
-nonempty audio URI. Combine both filters with
+`has_candidates=true` additionally requires a candidate with a nonempty
+`candidates.audio_gcs_uri`. It does not join the windows table. Combine both filters with
 `/species?has_audio=true&has_candidates=true` for annotation targets. Omitted or
 `false` applies no candidate filter. As with `has_audio`, invalid or repeated
 values return HTTP 400. Previously answered candidates remain available under
@@ -97,6 +97,11 @@ the existing candidate API; this filter does not exclude annotator answers.
 ```
 
 ### `GET /references?species_id=AGACAL&species_id=DENEBR`
+
+References are returned in display order, then by reference ID. The nullable
+`reference_media.display_order` column defaults to order 1; template clips use 0
+so they appear first. Apply `osa_anurans_app/structs/add_reference_display_order.sql`
+before deploying this version against an existing dataset.
 
 Supply 1–52 nonempty `species_id` parameters. Duplicates are removed and the
 query uses a parameterized STRING array. Missing/invalid lists return HTTP 400.
@@ -126,7 +131,7 @@ contain signed URLs. The browser fetches media directly from GCS.
 URLs allow GET access for 15 minutes; `urls_expire_at` is their UTC expiration.
 Fetch `/references` again before using expired URLs. Successful API responses
 use `Cache-Control: no-store`. Anyone with a URL can read that object until it
-expires, and a public endpoint allows anyone to request URLs. No object existence
+expires. Requesting signed URLs requires the API bearer token. No object existence
 check is made during signing; a missing file will fail when the browser fetches it.
 If the frontend uses JavaScript fetch/Web Audio or canvas access, configure GCS
 bucket CORS for the frontend origin as well; function CORS only covers API calls.
@@ -181,7 +186,7 @@ pages. Candidates created after that cutoff appear in a new session. This is
 not a database snapshot: backdated inserts, deletes, or edits can change pages.
 Keep published candidate IDs, scores, and creation times immutable. Cursor format is v3; old cursors return 400 and require restarting from the first batch. Cursor tokens are
 validated, species-bound continuation data, not signed authorization tokens.
-All candidate reads require a reviewer token and remain bounded and parameterized regardless of cursor.
+All candidate reads require an annotator token and remain bounded and parameterized regardless of cursor.
 
 The website fetches 20 candidate metadata rows per API page and displays the chosen
 batch size from its in-memory queue. It downloads media only for displayed clips.
@@ -195,23 +200,37 @@ reference media. Each window has a standalone five-second audio file in
 offsets are returned separately as metadata and must not be applied to playback
 or local spectrogram generation. Candidate queries read candidates only, without window/recording joins.
 
-No reviewer identity is required to read. For submissions, use a
+No annotator identity is required to read beyond the bearer token. For submissions, use a
 browser-generated UUID held in page memory as `annotator_id`, and ask for
 a display name separately. Names must not serve as unique identifiers. Run the
 name-column migration below before enabling submissions. This endpoint does not yet exclude previously
-annotated candidates or reserve batches for one reviewer. Different reviewers
+annotated candidates or reserve batches for one annotator. Different annotators
 can receive the same candidates.
 
 ### `POST /annotations`
 
 Accepts 1-20 answers with window_id, query_species_id, response, and optional
-candidate_id, plus submission/reviewer UUIDs and a display name. The frontend
+candidate_id, plus submission/annotator UUIDs and a display name. The frontend
 supplies relationships; the service only checks request format in Python and
 performs a single INSERT. No database lookups or duplicate checks run. Replaying
 a request appends new rows. Training data preparation owns cleanup.
 
-See [ANNOTATION_SUBMISSIONS.md](ANNOTATION_SUBMISSIONS.md) for the new payload,
-error behavior, and frontend changes. No shared rate limiting is implemented.
+```json
+{
+  "submission_id": "b46a781f-8839-46b9-9ed4-b91c51123838",
+  "annotator_id": "ad3a6953-3120-45b3-a56f-43f3693d454e",
+  "annotator_name": "Eoin",
+  "annotations": [
+    {"window_id": "window-id", "query_species_id": "SCIBOU", "response": "present"}
+  ]
+}
+```
+
+- Responses: `present`, `absent`, or `unsure`.
+- Success returns `submission_id` and `accepted_count`.
+- A network error or 503 can leave the write outcome uncertain. Do not retry
+  automatically: repeating a request can add duplicate votes.
+- No shared rate limiting is implemented.
 
 ## Deploy using the Cloud Console
 
@@ -219,11 +238,12 @@ Open your existing Cloud Run function in project `osaanurans` and edit its sourc
 
 1. Use a supported Python runtime, such as Python 3.12.
 2. In BigQuery Studio (`us-south1`), run
-   [add_annotator_name.sql](../../bigquery/add_annotator_name.sql) on the existing
-   annotations table. Existing rows remain unchanged; new API writes require a name.
+   the required migrations in [structs/](../../osa_anurans_app/structs/) for your
+   existing schema. New datasets use `create_tables.sql`; existing annotations
+   must include `annotator_name STRING`. Production is already migrated.
 3. Grant the runtime account Data Editor on `annotations`, as described above.
 4. Configure ANNOTATOR_PASSWORD and ANNOTATOR_TOKEN_SECRET using Secret Manager,
-   following [REVIEWER_ACCESS.md](REVIEWER_ACCESS.md). Missing configuration fails
+   with the minimum lengths above. Missing configuration fails
    closed. Copy **all seven top-level Python files** and `requirements.txt`
    into the function source. Keep them side by side in the console editor:
    `main.py`, `settings.py`, `catalog.py`, `candidates.py`, `media.py`,
@@ -265,8 +285,8 @@ on the configured signing account. `/species` needs no signing setup.
 
 Run `python -m unittest discover -s tests -v` from this directory for mocked
 HTTP, signing, format-check, and append-only write tests. Cloud calls use mocks;
-these tests do not contact BigQuery/GCS/IAM. Follow the manual submission
-checks in [ANNOTATION_SUBMISSIONS.md](ANNOTATION_SUBMISSIONS.md) after deployment.
+these tests do not contact BigQuery/GCS/IAM. Test authenticated reads after deployment;
+use disposable data when testing submissions.
 
 After deployment, log in and fetch `/references?species_id=AGACAL` with its token, then open the returned
 `audio_url` and `spectrogram_url` in your browser. To verify privacy, the same
