@@ -1,0 +1,283 @@
+"""Check that annotation reads need only BigQuery and preserve useful errors."""
+
+import json
+
+import pytest
+from osa_anurans_app.src import cli
+from osa_anurans_app.src.cloud import bigquery, storage
+from osa_anurans_app.src.config import AppConfig
+
+
+@pytest.mark.parametrize("field", ["epochs", "batch_size"])
+@pytest.mark.parametrize("value", ["1.5", "true", "0", "-1"])
+def test_toml_rejects_invalid_training_counts_before_work(tmp_path, field, value):
+    from osa_anurans_app.src.config import load_config
+
+    path = tmp_path / "config.toml"
+    path.write_text(
+        f"[paths]\naudio_roots = ['.']\n[training]\n{field} = {value}\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match=field):
+        load_config(path)
+
+
+@pytest.mark.parametrize("interactive", [False, True])
+def test_annotation_refresh_never_creates_or_checks_gcs(tmp_path, monkeypatch, interactive):
+    config = AppConfig((tmp_path,), tmp_path / "annotations.csv", tmp_path / "artifacts")
+    checks = []
+
+    class AnnotationStore:
+        def __init__(self, config):
+            pass
+
+        def check_access(self):
+            checks.append("bigquery")
+
+        def fetch_annotations(self):
+            return []
+
+    def deny_storage(*args, **kwargs):
+        pytest.fail("Annotation refresh must not create a GCS client")
+
+    monkeypatch.setattr(bigquery, "BigQueryStore", AnnotationStore)
+    monkeypatch.setattr(storage, "StorageStore", deny_storage)
+    args = cli.parser().parse_args(["train" if interactive else "refresh"])
+    if interactive:
+
+        def train(config, **kwargs):
+            latest = json.loads((config.artifacts / "latest.json").read_text())
+            assert latest["snapshot"]
+            return tmp_path / "run"
+
+        monkeypatch.setattr(cli, "train_local", train)
+    if interactive:
+        cli.execute_workflow(cli.Workflow.from_selection(["refresh", "train"]), config)
+    else:
+        cli.execute(args, config)
+    assert checks == ["bigquery"]
+    latest = json.loads((config.artifacts / "latest.json").read_text())
+    assert latest["snapshot"]
+
+
+def test_annotation_auth_error_preserves_cause_and_login_advice(tmp_path, monkeypatch):
+    config = AppConfig((tmp_path,), tmp_path / "annotations.csv", tmp_path)
+    denied = PermissionError("BigQuery denied")
+
+    def deny_bigquery(*args, **kwargs):
+        raise denied
+
+    monkeypatch.setattr(bigquery, "BigQueryStore", deny_bigquery)
+    with pytest.raises(RuntimeError, match="application-default login") as caught:
+        cli.execute(cli.parser().parse_args(["refresh"]), config)
+    assert caught.value.__cause__ is denied
+
+
+@pytest.mark.parametrize("override", [False, True])
+def test_cloud_environment_uses_config_and_preserves_overrides(tmp_path, monkeypatch, override):
+    import os
+    import warnings
+
+    config = AppConfig((tmp_path,), tmp_path / "annotations.csv", tmp_path)
+    for key in ("GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_QUOTA_PROJECT"):
+        if override:
+            monkeypatch.setenv(key, "explicit-project")
+        else:
+            monkeypatch.delenv(key, raising=False)
+    with warnings.catch_warnings():
+        cli.configure_cloud_environment(config)
+    expected = "explicit-project" if override else config.project
+    assert os.environ["GOOGLE_CLOUD_PROJECT"] == expected
+    assert os.environ["GOOGLE_CLOUD_QUOTA_PROJECT"] == expected
+
+
+@pytest.mark.parametrize(
+    "selected",
+    [
+        ["import"],
+        ["refresh"],
+        ["train"],
+        ["generate"],
+        ["refresh", "train"],
+        ["import", "refresh", "train", "publish"],
+        ["publish"],
+    ],
+)
+def test_workflow_runs_selected_steps_without_prompting(tmp_path, monkeypatch, selected):
+    config = AppConfig((tmp_path,), None, tmp_path / "artifacts")
+    directory = config.artifacts / "runs" / "new-run"
+    calls = []
+    monkeypatch.setattr("builtins.input", lambda *_: pytest.fail("Unexpected prompt"))
+    monkeypatch.setattr(cli, "_annotation_store", lambda config: "bq")
+    monkeypatch.setattr(cli, "import_local", lambda config: calls.append("import"))
+    monkeypatch.setattr(cli, "refresh_annotations", lambda config, store: calls.append("refresh"))
+
+    def train(config):
+        calls.append("train")
+        return directory
+
+    def upload(args, config):
+        assert args.run_directory == directory
+        calls.append("publish")
+
+    monkeypatch.setattr(cli, "train_local", train)
+    monkeypatch.setattr(
+        cli,
+        "generate_candidates_local",
+        lambda config, **kwargs: calls.append("generate") or directory,
+    )
+    monkeypatch.setattr(cli, "_execute_cloud", upload)
+    workflow = cli.Workflow.from_selection(selected)
+    cli.execute_workflow(workflow, config)
+    assert calls == list(workflow.steps)
+
+
+def test_failed_training_never_uploads_an_older_run(tmp_path, monkeypatch):
+    config = AppConfig((tmp_path,), None, tmp_path / "artifacts")
+
+    def fail(config):
+        raise RuntimeError("Training failed")
+
+    monkeypatch.setattr(cli, "train_local", fail)
+    monkeypatch.setattr(cli, "_execute_cloud", lambda *args: pytest.fail("Unexpected upload"))
+    with pytest.raises(RuntimeError, match="Training failed"):
+        cli.execute_workflow(cli.Workflow.from_selection(["train", "publish"]), config)
+
+
+def test_workflow_generation_uses_new_model_and_uploads_only_new_selection(tmp_path, monkeypatch):
+    config = AppConfig((tmp_path,), None, tmp_path / "outputs")
+    model, selection = tmp_path / "model", tmp_path / "selection"
+    monkeypatch.setattr(cli, "train_local", lambda config: model)
+
+    def generate(config, *, model_directory):
+        assert model_directory == model
+        return selection
+
+    monkeypatch.setattr(cli, "generate_candidates_local", generate)
+    uploads = []
+    monkeypatch.setattr(
+        cli, "_execute_cloud", lambda args, config: uploads.append(args.run_directory)
+    )
+    cli.execute_workflow(cli.Workflow.from_selection(["train", "publish"]), config)
+    assert uploads == [selection]
+
+
+def test_failed_generation_stops_publication(tmp_path, monkeypatch):
+    config = AppConfig((tmp_path,), None, tmp_path / "outputs")
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("generation failed")
+
+    monkeypatch.setattr(cli, "generate_candidates_local", fail)
+    monkeypatch.setattr(
+        cli, "_execute_cloud", lambda *args: pytest.fail("Must not upload an older selection")
+    )
+    with pytest.raises(RuntimeError, match="generation failed"):
+        cli.execute_workflow(cli.Workflow.from_selection(["publish"]), config)
+
+
+def test_direct_train_does_not_generate_candidates(tmp_path, monkeypatch):
+    config = AppConfig((tmp_path,), None, tmp_path / "outputs")
+    monkeypatch.setattr(cli, "train_local", lambda *args, **kwargs: tmp_path / "model")
+    monkeypatch.setattr(
+        cli,
+        "generate_candidates_local",
+        lambda *args, **kwargs: pytest.fail("Training must not generate"),
+    )
+    cli.execute(cli.parser().parse_args(["train"]), config)
+
+
+def test_direct_generate_passes_explicit_model_without_training(tmp_path, monkeypatch):
+    config = AppConfig((tmp_path,), None, tmp_path / "outputs")
+    monkeypatch.setattr(
+        cli, "train_local", lambda *args, **kwargs: pytest.fail("Generation must not train")
+    )
+    calls = []
+    monkeypatch.setattr(
+        cli,
+        "generate_candidates_local",
+        lambda config, **kwargs: calls.append(kwargs) or tmp_path / "selection",
+    )
+    model = tmp_path / "saved-model"
+    cli.execute(cli.parser().parse_args(["generate", "--model-directory", str(model)]), config)
+    assert calls == [{"model_directory": model, "snapshot": None, "config_id": None}]
+
+
+def test_cancelled_workflow_does_not_process_data(tmp_path, monkeypatch):
+    config = AppConfig((tmp_path,), None, tmp_path / "artifacts")
+    monkeypatch.setattr(cli, "configure_workflow", lambda config: None)
+    monkeypatch.setattr(cli, "execute_workflow", lambda *args: pytest.fail("Unexpected processing"))
+    args = cli.parser().parse_args([])
+    args.action = "workflow"
+    cli.execute(args, config, interactive=True)
+
+
+def test_menu_upload_uses_selected_confirmed_run(tmp_path, monkeypatch):
+    config = AppConfig((tmp_path,), None, tmp_path / "artifacts")
+    directory = config.artifacts / "runs" / "selected"
+    monkeypatch.setattr(cli, "choose_run", lambda config: directory)
+    published = []
+    monkeypatch.setattr(
+        cli, "_execute_cloud", lambda args, config: published.append(args.run_directory)
+    )
+    cli.execute(cli.parser().parse_args(["publish", "."]), config, interactive=True)
+    assert published == [directory]
+
+
+def test_default_config_prefers_local_and_accepts_explicit_override(tmp_path, monkeypatch):
+    from osa_anurans_app.src.config import default_config
+
+    example = tmp_path / "config.example.toml"
+    example.touch()
+    assert default_config(tmp_path) == example
+    local = tmp_path / "config.local.toml"
+    local.touch()
+    assert default_config(tmp_path) == local
+    monkeypatch.setattr(cli, "default_config", lambda: default_config(tmp_path))
+    assert cli.parser().parse_args([]).config == local
+    assert cli.parser().parse_args(["--config", str(example)]).config == example
+
+
+def test_input_and_output_config_paths_resolve_beside_config(tmp_path):
+    from osa_anurans_app.src.config import load_config
+
+    path = tmp_path / "config.toml"
+    path.write_text("[paths]\naudio_roots = ['inputs/audio-inbox']\n")
+    config = load_config(path)
+    assert config.audio_roots == (tmp_path / "inputs" / "audio-inbox",)
+    assert config.artifacts == tmp_path / "outputs"
+    assert config.species_manifest_path == tmp_path / "inputs" / "species.json"
+    path.write_text(
+        "[paths]\naudio_roots = ['inputs/audio-inbox']\nspecies_manifest = 'inputs/custom.json'\n"
+    )
+    assert load_config(path).species_manifest_path == tmp_path / "inputs" / "custom.json"
+
+
+def test_cleanup_workflow_runs_after_publication_or_on_its_own(tmp_path, monkeypatch):
+    config = AppConfig((tmp_path,), None, tmp_path / "artifacts")
+    directory = config.artifacts / "runs" / "new-run"
+    monkeypatch.setattr(cli, "generate_candidates_local", lambda config, **kwargs: directory)
+    calls = []
+    monkeypatch.setattr(
+        cli, "_execute_cloud", lambda args, config: calls.append((args.action, args.run_directory))
+    )
+    cli.execute_workflow(cli.Workflow.from_selection(["publish", "cleanup"]), config)
+    assert calls == [("publish", directory), ("cleanup", directory)]
+    calls.clear()
+    cli.execute_workflow(cli.Workflow.from_selection(["cleanup"]), config)
+    assert calls == [("cleanup", None)]
+    assert cli.parser().parse_args(["cleanup"]).action == "cleanup"
+    assert cli.parser().parse_args(["publish", str(directory), "--cleanup"]).cleanup is True
+
+
+def test_failed_publication_stops_cleanup(tmp_path, monkeypatch):
+    config = AppConfig((tmp_path,), None, tmp_path / "artifacts")
+    monkeypatch.setattr(cli, "generate_candidates_local", lambda config, **kwargs: tmp_path / "run")
+
+    def fail(args, config):
+        assert args.action == "publish"
+        raise RuntimeError("publication failed")
+
+    monkeypatch.setattr(cli, "_execute_cloud", fail)
+    with pytest.raises(RuntimeError, match="publication failed"):
+        cli.execute_workflow(cli.Workflow.from_selection(["publish", "cleanup"]), config)
