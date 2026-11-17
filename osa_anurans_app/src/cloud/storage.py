@@ -102,13 +102,15 @@ class StorageStore:
                 clips[relative[:-4]] = blob
         return clips
 
-    def storage_usage(self) -> dict[str, int]:
+    def storage_usage(self, *, include_versions: bool = False) -> dict[str, int]:
         """Sum bucket metadata, including references and retained soft-deleted objects.
 
         - No object data is downloaded.
         - Report active and soft-deleted bytes separately: cleanup does not purge retention.
+        - include_versions also counts retained noncurrent versions as active storage.
         """
-        active = sum(blob.size or 0 for blob in self.client.list_blobs(self.config.bucket))
+        options = {"versions": True} if include_versions else {}
+        active = sum(blob.size or 0 for blob in self.client.list_blobs(self.config.bucket, **options))
         deleted = sum(
             blob.size or 0 for blob in self.client.list_blobs(self.config.bucket, soft_deleted=True)
         )

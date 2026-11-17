@@ -12,6 +12,7 @@ Commands:
 - generate: Generate candidates using saved labels and an optional saved classifier.
 - both: Import audio, train, and generate candidates locally.
 - status: Show local catalog counts.
+- cloud-usage: Show cloud resource usage and remaining configured budgets.
 - publish: Upload WAVs to GCS, insert BigQuery metadata, then replace candidates.
 - cleanup: Delete GCS window WAVs without current candidates or references.
 - refresh: Read BigQuery answers into a local label snapshot.
@@ -111,6 +112,7 @@ def parser() -> argparse.ArgumentParser:
                 help="Saved classifier run; defaults to the latest compatible model",
             )
     commands.add_parser("status", help="Show local catalog counts")
+    commands.add_parser("cloud-usage", help="Show Google Cloud usage and remaining budgets")
     commands.add_parser("refresh", help="Fetch BigQuery answers and save a consensus snapshot")
     browse = commands.add_parser("browse", help="Browse saved annotations and local audio")
     browse.add_argument("--snapshot", type=Path, help="Saved snapshot; defaults to latest.json")
@@ -248,6 +250,11 @@ def execute(args, config, interactive: bool = False) -> None:
     - both retains the combined import/train/generate local workflow.
     """
     if args.action == "exit":
+        return
+    if args.action == "cloud-usage":
+        from .cloud.usage import display_cloud_usage
+
+        display_cloud_usage(config)
         return
     if args.action == "browse":
         from .annotation_browser_server import run_browser

@@ -133,6 +133,43 @@ Edit `osa_anurans_app/inputs/species.json`, then choose **Import labeled audio**
 
 ## Settings and files
 
+### Check Google Cloud usage
+
+Choose **Check Google Cloud usage** in the opening menu, or run:
+
+```powershell
+.\osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli cloud-usage
+```
+
+- Shows used, budget, and remaining **GiB** for each category.
+- BigQuery queries: completed jobs created this UTC month across the configured project.
+- BigQuery storage: current logical bytes in the configured dataset.
+- GCS storage: current bucket bytes, including retained versions and soft-deleted objects.
+- GCS downloads: monthly network bytes sent from the bucket; a delayed Monitoring estimate, not billable egress.
+- Missing permissions or measurements appear as **unavailable**, not zero. Other categories still load.
+- Read-only: no BigQuery SQL, service shutdown, or changes to Google Cloud limits.
+
+Optional settings in your active config:
+
+```toml
+[usage]
+bq_query_budget_gib = 1024
+bq_storage_budget_gib = 10
+gcs_storage_budget_gib = 10
+# Set your own monthly traffic budget to display remaining download usage.
+# gcs_download_budget_gib = 100
+```
+
+- These are personal reporting budgets, not guaranteed free allowances.
+- Download budget is unset by default. Usage still appears when Monitoring is available.
+- Warns at 90%; negative remaining values show how much a budget is exceeded.
+- Storage is a current snapshot, not the monthly average used for billing.
+- Other projects, datasets, and buckets may also consume your billing account's allowances.
+- Query reporting needs project-wide job visibility (`bigquery.jobs.listAll`);
+  download reporting needs the Monitoring API and `monitoring.timeSeries.list`.
+
+### Configure paths and training
+
 To customize settings, copy `config.example.toml` to `config.local.toml` if you do
 not already have one. Paths in that file are relative to its directory.
 

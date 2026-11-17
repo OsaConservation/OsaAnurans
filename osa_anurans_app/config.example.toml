@@ -26,3 +26,11 @@ dataset = 'osafrogdataset'
 bucket = 'osa-frog-data'
 prefix = 'windows/v1'
 location = 'us-south1'
+
+[usage]
+# Personal reporting budgets in GiB, not automatic limits or free-tier guarantees.
+bq_query_budget_gib = 1024
+bq_storage_budget_gib = 10
+gcs_storage_budget_gib = 10
+# Optional: set your monthly network traffic budget to show remaining download usage.
+# gcs_download_budget_gib = 100

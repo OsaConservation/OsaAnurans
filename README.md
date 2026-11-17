@@ -66,6 +66,7 @@ gcloud auth application-default login
 - In the menu, use **Up/Down** to move and **Space** to choose steps.
 - Select **Continue**, review the plan, then choose **Start workflow**.
 - All selected steps run without further prompts.
+- Choose **Check Google Cloud usage** to see resource usage and remaining configured budgets.
 
 **Typical run:** fetch annotations, train, generate candidates, and upload. Add **Import new
 audio** when you have new recordings.

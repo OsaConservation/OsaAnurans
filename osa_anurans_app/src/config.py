@@ -20,6 +20,7 @@ class AppConfig:
     - device/seed/epochs/batch_size/learning_rate/test_fraction: Training settings.
     - candidates_per_species: Maximum saved candidates per species; default 100.
     - similarity_balance: Positive recording count giving a 50/50 candidate mix.
+    - *_budget_gib: Personal reporting targets; never enforce cloud limits.
     """
 
     audio_roots: tuple[Path, ...]
@@ -39,6 +40,10 @@ class AppConfig:
     candidates_per_species: int = 100
     similarity_balance: float = 25
     species_manifest: Path | None = None
+    bq_query_budget_gib: float = 1024
+    bq_storage_budget_gib: float = 10
+    gcs_storage_budget_gib: float = 10
+    gcs_download_budget_gib: float | None = None
 
     @property
     def species_manifest_path(self) -> Path:
@@ -57,7 +62,7 @@ def load_config(path: Path) -> AppConfig:
     """Read TOML settings and return a validated AppConfig.
 
     Steps:
-    1. Read paths, training, candidates, and cloud sections.
+    1. Read paths, training, candidates, cloud, and optional usage sections.
     2. Resolve relative paths against the TOML directory, not the working directory.
     3. Apply dataclass defaults and validate values.
 
@@ -82,6 +87,7 @@ def load_config(path: Path) -> AppConfig:
         **data.get("cloud", {}),
         **data.get("training", {}),
         **data.get("candidates", {}),
+        **data.get("usage", {}),
     )
     validate_config(config)
     return config
@@ -97,6 +103,22 @@ def validate_config(config: AppConfig) -> None:
     """
     if not config.audio_roots:
         raise ValueError("At least one audio root must be configured")
+    for name in (
+        "bq_query_budget_gib",
+        "bq_storage_budget_gib",
+        "gcs_storage_budget_gib",
+        "gcs_download_budget_gib",
+    ):
+        value = getattr(config, name)
+        if value is None and name == "gcs_download_budget_gib":
+            continue
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not math.isfinite(value)
+            or value <= 0
+        ):
+            raise ValueError(f"{name} must be a finite positive number")
     for name in (config.project, config.dataset):
         if not re.fullmatch(r"[A-Za-z0-9_-]+", name):
             raise ValueError(f"Invalid BigQuery project/dataset: {name}")

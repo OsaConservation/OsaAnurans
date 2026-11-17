@@ -125,6 +125,12 @@ def test_opening_screen_exit_does_not_run_checked_steps(terminal_session, tmp_pa
     assert ui._workflow_menu(["refresh", "train"], config) == "exit"
 
 
+def test_cloud_usage_opens_without_running_checked_steps(terminal_session, tmp_path):
+    config = AppConfig((tmp_path,), None, tmp_path / "artifacts")
+    terminal_session.send_text("\x1b[A\x1b[A\r")
+    assert ui.configure_workflow(config) == "cloud-usage"
+
+
 def test_browse_opens_without_running_checked_steps(terminal_session, tmp_path):
     config = AppConfig((tmp_path,), None, tmp_path / "artifacts")
     terminal_session.send_text("\x1b[B" * (len(ui.STEP_LABELS) + 1) + "\r")

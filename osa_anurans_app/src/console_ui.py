@@ -88,12 +88,13 @@ def workflow_labels(config) -> dict[str, str]:
 def _workflow_menu(selected: list[str], config):
     """Show step checkboxes and action buttons together on the opening screen."""
     checked = set(selected)
-    rows = list(STEP_LABELS) + ["continue", "browse", "exit"]
+    rows = list(STEP_LABELS) + ["continue", "browse", "cloud-usage", "exit"]
     labels = {
         **workflow_labels(config),
         "continue": "Continue",
         "exit": "Exit",
         "browse": "Browse annotations (saved answers and local audio)",
+        "cloud-usage": "Check Google Cloud usage",
     }
     position = 0
     error = ""
