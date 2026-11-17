@@ -1,0 +1,17 @@
+[0] Config.pm:328> INFO - This is Biber 2.21
+[0] Config.pm:331> INFO - Logfile is 'report.blg'
+[127] biber-MSWIN64:342> INFO - === 
+[180] Biber.pm:421> INFO - Reading 'report.bcf'
+[310] Biber.pm:1002> INFO - Found 15 citekeys in bib section 0
+[324] Biber.pm:4487> INFO - Processing section 0
+[336] Biber.pm:4678> INFO - Looking for bibtex file 'ref.bib' for section 0
+[471] bibtex.pm:1713> INFO - LaTeX decoding ...
+[523] bibtex.pm:1519> INFO - Found BibTeX data source 'ref.bib'
+[728] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'variable = shifted' with 'variable = non-ignorable'
+[728] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'normalization = NFD' with 'normalization = prenormalized'
+[728] Biber.pm:4307> INFO - Sorting list 'nty/global//global/global/global' of type 'entry' with template 'nty' and locale 'en-US'
+[728] Biber.pm:4313> INFO - No sort tailoring available for locale 'en-US'
+[749] bbl.pm:676> INFO - Writing 'report.bbl' with encoding 'UTF-8'
+[775] bbl.pm:779> INFO - Output to report.bbl
+[775] Biber.pm:132> WARN - ISBN '978-3-540-22004-6 978-3-540-24840-8' in entry 'kiritchenkoLearningEvaluationPresence2006' is invalid - run biber with '--validate_datamodel' for details.
+[775] Biber.pm:134> INFO - WARNINGS: 1

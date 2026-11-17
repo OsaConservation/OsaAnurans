@@ -1,0 +1,1095 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.3 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated by
+% biber as required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+
+\refsection{0}
+  \datalist[entry]{nty/global//global/global/global}
+    \entry{artsteinInterCoderAgreementComputational2008}{article}{}{}
+      \name{author}{2}{}{%
+        {{hash=fa1dff427d354932033a58782953eace}{%
+           family={Artstein},
+           familyi={A\bibinitperiod},
+           given={Ron},
+           giveni={R\bibinitperiod}}}%
+        {{hash=a18d390058dfaa1a918b1cb85cde6539}{%
+           family={Poesio},
+           familyi={P\bibinitperiod},
+           given={Massimo},
+           giveni={M\bibinitperiod}}}%
+      }
+      \strng{namehash}{82f1a446ff1ea638d78f1fc8f17cb18f}
+      \strng{fullhash}{82f1a446ff1ea638d78f1fc8f17cb18f}
+      \strng{fullhashraw}{82f1a446ff1ea638d78f1fc8f17cb18f}
+      \strng{bibnamehash}{82f1a446ff1ea638d78f1fc8f17cb18f}
+      \strng{authorbibnamehash}{82f1a446ff1ea638d78f1fc8f17cb18f}
+      \strng{authornamehash}{82f1a446ff1ea638d78f1fc8f17cb18f}
+      \strng{authorfullhash}{82f1a446ff1ea638d78f1fc8f17cb18f}
+      \strng{authorfullhashraw}{82f1a446ff1ea638d78f1fc8f17cb18f}
+      \field{sortinit}{A}
+      \field{sortinithash}{2f401846e2029bad6b3ecc16d50031e2}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{This article is a survey of methods for measuring agreement among corpus annotators. It exposes the mathematics and underlying assumptions of agreement coefficients, covering Krippendorff's alpha as well as Scott's pi and Cohen's kappa; discusses the use of coefficients in several annotation tasks; and argues that weighted, alpha-like coefficients, traditionally less used than kappa-like measures in computational linguistics, may be more appropriate for many corpus annotation tasks—but that their use makes the interpretation of the value of the coefficient even harder.}
+      \field{issn}{0891-2017, 1530-9312}
+      \field{journaltitle}{Computational Linguistics}
+      \field{langid}{english}
+      \field{month}{12}
+      \field{number}{4}
+      \field{shortjournal}{Computational Linguistics}
+      \field{title}{Inter-{{Coder Agreement}} for {{Computational Linguistics}}}
+      \field{urlday}{7}
+      \field{urlmonth}{11}
+      \field{urlyear}{2026}
+      \field{volume}{34}
+      \field{year}{2008}
+      \field{dateera}{ce}
+      \field{urldateera}{ce}
+      \field{pages}{555\bibrangedash 596}
+      \range{pages}{42}
+      \verb{doi}
+      \verb 10.1162/coli.07-034-R2
+      \endverb
+      \verb{file}
+      \verb C:\Users\Conservación Osa 9\Zotero\storage\28M928SR\Artstein y Poesio - 2008 - Inter-Coder Agreement for Computational Linguistics.pdf
+      \endverb
+      \verb{urlraw}
+      \verb https://direct.mit.edu/coli/article/34/4/555-596/1999
+      \endverb
+      \verb{url}
+      \verb https://direct.mit.edu/coli/article/34/4/555-596/1999
+      \endverb
+    \endentry
+    \entry{chenVariationalApproachLearning2020}{online}{}{}
+      \name{author}{5}{}{%
+        {{hash=92f386b2333cf6bddfa01a270cab627d}{%
+           family={Chen},
+           familyi={C\bibinitperiod},
+           given={Hui},
+           giveni={H\bibinitperiod}}}%
+        {{hash=f211da191adb303fa666765dba597bb2}{%
+           family={Liu},
+           familyi={L\bibinitperiod},
+           given={Fangqing},
+           giveni={F\bibinitperiod}}}%
+        {{hash=6a2717abae52952f9dbb72cd5475f8d4}{%
+           family={Wang},
+           familyi={W\bibinitperiod},
+           given={Yin},
+           giveni={Y\bibinitperiod}}}%
+        {{hash=0095d343c5d1f9813d101bb3c213422a}{%
+           family={Zhao},
+           familyi={Z\bibinitperiod},
+           given={Liyue},
+           giveni={L\bibinitperiod}}}%
+        {{hash=d0d5a12b1f5bae45ea7780158b3b35c8}{%
+           family={Wu},
+           familyi={W\bibinitperiod},
+           given={Hao},
+           giveni={H\bibinitperiod}}}%
+      }
+      \strng{namehash}{f4a433c820c2f700c31982ed46d1d0fc}
+      \strng{fullhash}{a1dadba59017c09376c03ede76b184ac}
+      \strng{fullhashraw}{a1dadba59017c09376c03ede76b184ac}
+      \strng{bibnamehash}{f4a433c820c2f700c31982ed46d1d0fc}
+      \strng{authorbibnamehash}{f4a433c820c2f700c31982ed46d1d0fc}
+      \strng{authornamehash}{f4a433c820c2f700c31982ed46d1d0fc}
+      \strng{authorfullhash}{a1dadba59017c09376c03ede76b184ac}
+      \strng{authorfullhashraw}{a1dadba59017c09376c03ede76b184ac}
+      \field{sortinit}{C}
+      \field{sortinithash}{4d103a86280481745c9c897c925753c0}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{Learning binary classifiers only from positive and unlabeled (PU) data is an important and challenging task in many real-world applications, including web text classification, disease gene identification and fraud detection, where negative samples are difficult to verify experimentally. Most recent PU learning methods are developed based on the conventional misclassification risk of the supervised learning type, and they require to solve the intractable risk estimation problem by approximating the negative data distribution or the class prior. In this paper, we introduce a variational principle for PU learning that allows us to quantitatively evaluate the modeling error of the Bayesian classifier directly from given data. This leads to a loss function which can be efficiently calculated without any intermediate step or model, and a variational learning method can then be employed to optimize the classifier under general conditions. In addition, the discriminative performance and numerical stability of the variational PU learning method can be further improved by incorporating a margin maximizing loss function. We illustrate the effectiveness of the proposed variational method on a number of benchmark examples.}
+      \field{day}{29}
+      \field{eprintclass}{cs.LG}
+      \field{eprinttype}{arXiv}
+      \field{langid}{english}
+      \field{month}{11}
+      \field{pubstate}{prepublished}
+      \field{title}{A {{Variational Approach}} for {{Learning}} from {{Positive}} and {{Unlabeled Data}}}
+      \field{urlday}{10}
+      \field{urlmonth}{11}
+      \field{urlyear}{2026}
+      \field{year}{2020}
+      \field{dateera}{ce}
+      \field{urldateera}{ce}
+      \verb{doi}
+      \verb 10.48550/arXiv.1906.00642
+      \endverb
+      \verb{eprint}
+      \verb 1906.00642
+      \endverb
+      \verb{file}
+      \verb C:\Users\Conservación Osa 9\Zotero\storage\ZIJRKRES\Chen et al. - 2020 - A Variational Approach for Learning from Positive and Unlabeled Data.pdf
+      \endverb
+      \verb{urlraw}
+      \verb http://arxiv.org/abs/1906.00642
+      \endverb
+      \verb{url}
+      \verb http://arxiv.org/abs/1906.00642
+      \endverb
+      \keyw{Computer Science - Machine Learning,Statistics - Machine Learning}
+    \endentry
+    \entry{gouveaYAPATOpenSourcePlatform2026}{online}{}{}
+      \name{author}{7}{}{%
+        {{hash=64930324880757db0cdd79f0948221cc}{%
+           family={Gouvêa},
+           familyi={G\bibinitperiod},
+           given={Thiago\bibnamedelima S.},
+           giveni={T\bibinitperiod\bibinitdelim S\bibinitperiod}}}%
+        {{hash=88d5071cd41eabfec3b98d8aba400bf6}{%
+           family={Saghir},
+           familyi={S\bibinitperiod},
+           given={Rida},
+           giveni={R\bibinitperiod}}}%
+        {{hash=51d77ec4260a1edc88c14e61f48fba8e}{%
+           family={Doddanawar},
+           familyi={D\bibinitperiod},
+           given={Prathmesh\bibnamedelima P.},
+           giveni={P\bibinitperiod\bibinitdelim P\bibinitperiod}}}%
+        {{hash=a641cc92f283c843e52a5149262c1874}{%
+           family={Mammadli},
+           familyi={M\bibinitperiod},
+           given={Novruz},
+           giveni={N\bibinitperiod}}}%
+        {{hash=9dd5ae8d110b660fb21ab83b1eee98c6}{%
+           family={Sitapara},
+           familyi={S\bibinitperiod},
+           given={Pratik\bibnamedelima P.},
+           giveni={P\bibinitperiod\bibinitdelim P\bibinitperiod}}}%
+        {{hash=ea3c04c57d5931c881395eb4beae0436}{%
+           family={Kath},
+           familyi={K\bibinitperiod},
+           given={Hannes},
+           giveni={H\bibinitperiod}}}%
+        {{hash=7016fcec9bb93cc78034ffc66532c79d}{%
+           family={Sonntag},
+           familyi={S\bibinitperiod},
+           given={Daniel},
+           giveni={D\bibinitperiod}}}%
+      }
+      \strng{namehash}{22fddeec1880050eaced1b36fad191e0}
+      \strng{fullhash}{cc854c5ad5d80f292ee744af27809928}
+      \strng{fullhashraw}{cc854c5ad5d80f292ee744af27809928}
+      \strng{bibnamehash}{22fddeec1880050eaced1b36fad191e0}
+      \strng{authorbibnamehash}{22fddeec1880050eaced1b36fad191e0}
+      \strng{authornamehash}{22fddeec1880050eaced1b36fad191e0}
+      \strng{authorfullhash}{cc854c5ad5d80f292ee744af27809928}
+      \strng{authorfullhashraw}{cc854c5ad5d80f292ee744af27809928}
+      \field{sortinit}{G}
+      \field{sortinithash}{32d67eca0634bf53703493fb1090a2e8}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{Passive Acoustic Monitoring (PAM) enables non-invasive, large-scale assessment of animal biodiversity, but the resulting audio archives routinely exceed what domain experts can annotate manually. Existing annotation tools address parts of this challenge through spectrogram visualisation, automated inference, or collaborative review, but none support the full annotation cycle needed to produce high-quality, interoperable datasets at scale. We present YAPAT (Yet Another PAM Annotation Tool), a web-based platform for interactive machine learning applied to the curation of annotated PAM datasets. YAPAT integrates four capabilities that, in combination, are absent from prior tools: (i) ontology-grounded label spaces that link annotations to authoritative biological and environmental taxonomies (GBIF, ENVO), with explicit local concept support, supporting dataset interoperability and reuse; (ii) multi-label active learning that ranks unlabelled snippets by a composite informativeness score, reducing the expert effort required to produce a well-labelled dataset; (iii) two complementary cold-start mechanisms: upload-based vector similarity search over frozen BirdNET embeddings, enabling annotation before any classifier exists; and weakly supervised sound event detection via multiple instance learning, enabling classifier initialisation from sound collections labelled at the file level; and (iv) interactive 2D projection of BirdNET embeddings for exploratory annotation. The system is collaborative, browser-based, and open source, and produces reusable, ontology-grounded annotation datasets suitable for deposition and downstream analysis.}
+      \field{day}{31}
+      \field{eprinttype}{In Review}
+      \field{langid}{english}
+      \field{month}{7}
+      \field{pubstate}{prepublished}
+      \field{title}{{{YAPAT}} — {{An Open-Source Platform}} for {{Active}} and {{Weakly Supervised Annotation}} of {{Passive Acoustic Monitoring Data}}}
+      \field{urlday}{2}
+      \field{urlmonth}{11}
+      \field{urlyear}{2026}
+      \field{year}{2026}
+      \field{dateera}{ce}
+      \field{urldateera}{ce}
+      \verb{doi}
+      \verb 10.21203/rs.3.rs-10144323/v1
+      \endverb
+      \verb{file}
+      \verb C:\Users\Conservación Osa 9\Zotero\storage\SNSYJK3T\Gouvêa et al. - 2026 - YAPAT — An Open-Source Platform for Active and Weakly Supervised Annotation of Passive Acoustic Moni.pdf
+      \endverb
+      \verb{urlraw}
+      \verb https://www.researchsquare.com/article/rs-10144323/v1
+      \endverb
+      \verb{url}
+      \verb https://www.researchsquare.com/article/rs-10144323/v1
+      \endverb
+    \endentry
+    \entry{heActiveLearningApproach2014}{article}{}{}
+      \name{author}{8}{}{%
+        {{hash=e11994f6311c58065f85140bd075e976}{%
+           family={He},
+           familyi={H\bibinitperiod},
+           given={Tianxu},
+           giveni={T\bibinitperiod}}}%
+        {{hash=b38081e9d89b0b2d790e3caf60993423}{%
+           family={Zhang},
+           familyi={Z\bibinitperiod},
+           given={Shukui},
+           giveni={S\bibinitperiod}}}%
+        {{hash=78e941c23cba1e9d7416df464eb8b429}{%
+           family={Xin},
+           familyi={X\bibinitperiod},
+           given={Jie},
+           giveni={J\bibinitperiod}}}%
+        {{hash=371d9796cb8036a22427ddff728ba78b}{%
+           family={Zhao},
+           familyi={Z\bibinitperiod},
+           given={Pengpeng},
+           giveni={P\bibinitperiod}}}%
+        {{hash=bb371597af3d6d97a656e6f879c0189d}{%
+           family={Wu},
+           familyi={W\bibinitperiod},
+           given={Jian},
+           giveni={J\bibinitperiod}}}%
+        {{hash=f0dd3fd7baf83461c2cbf4996e77449a}{%
+           family={Xian},
+           familyi={X\bibinitperiod},
+           given={Xuefeng},
+           giveni={X\bibinitperiod}}}%
+        {{hash=b663ce1e9de5390dfd17f0f5237272d9}{%
+           family={Li},
+           familyi={L\bibinitperiod},
+           given={Chunhua},
+           giveni={C\bibinitperiod}}}%
+        {{hash=ca5b827f57c9b5f2cfda12dd151946e3}{%
+           family={Cui},
+           familyi={C\bibinitperiod},
+           given={Zhiming},
+           giveni={Z\bibinitperiod}}}%
+      }
+      \strng{namehash}{c5bf8e91007d2214d1d70a4ac26d6125}
+      \strng{fullhash}{6a2d07f4f7f2b1aaffb38896f60ccae8}
+      \strng{fullhashraw}{6a2d07f4f7f2b1aaffb38896f60ccae8}
+      \strng{bibnamehash}{c5bf8e91007d2214d1d70a4ac26d6125}
+      \strng{authorbibnamehash}{c5bf8e91007d2214d1d70a4ac26d6125}
+      \strng{authornamehash}{c5bf8e91007d2214d1d70a4ac26d6125}
+      \strng{authorfullhash}{6a2d07f4f7f2b1aaffb38896f60ccae8}
+      \strng{authorfullhashraw}{6a2d07f4f7f2b1aaffb38896f60ccae8}
+      \field{sortinit}{H}
+      \field{sortinithash}{23a3aa7c24e56cfa16945d55545109b5}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{Big data from the Internet of Things may create big challenge for data classification. Most active learning approaches select either uncertain or representative unlabeled instances to query their labels. Although several active learning algorithms have been proposed to combine the two criteria for query selection, they are usually ad hoc in finding unlabeled instances that are both informative and representative and fail to take the diversity of instances into account. We address this challenge by presenting a new active learning framework which considers uncertainty, representativeness, and diversity creation. The proposed approach provides a systematic way for measuring and combining the uncertainty, representativeness, and diversity of an instance. Firstly, use instances’ uncertainty and representativeness to constitute the most informative set. Then, use the kernel k -means clustering algorithm to filter the redundant samples and the resulting samples are queried for labels. Extensive experimental results show that the proposed approach outperforms several state-of-the-art active learning approaches.}
+      \field{issn}{2356-6140, 1537-744X}
+      \field{journaltitle}{The Scientific World Journal}
+      \field{langid}{english}
+      \field{shortjournal}{The Scientific World Journal}
+      \field{title}{An {{Active Learning Approach}} with {{Uncertainty}}, {{Representativeness}}, and {{Diversity}}}
+      \field{urlday}{5}
+      \field{urlmonth}{11}
+      \field{urlyear}{2026}
+      \field{volume}{2014}
+      \field{year}{2014}
+      \field{dateera}{ce}
+      \field{urldateera}{ce}
+      \field{pages}{1\bibrangedash 6}
+      \range{pages}{6}
+      \verb{doi}
+      \verb 10.1155/2014/827586
+      \endverb
+      \verb{file}
+      \verb C:\Users\Conservación Osa 9\Zotero\storage\C7J6L56X\He et al. - 2014 - An Active Learning Approach with Uncertainty, Representativeness, and Diversity.pdf
+      \endverb
+      \verb{urlraw}
+      \verb http://www.hindawi.com/journals/tswj/2014/827586/
+      \endverb
+      \verb{url}
+      \verb http://www.hindawi.com/journals/tswj/2014/827586/
+      \endverb
+    \endentry
+    \entry{kathLeveragingTransferLearning2024}{article}{}{}
+      \name{author}{5}{}{%
+        {{hash=ea3c04c57d5931c881395eb4beae0436}{%
+           family={Kath},
+           familyi={K\bibinitperiod},
+           given={Hannes},
+           giveni={H\bibinitperiod}}}%
+        {{hash=7f9a452874ced107e3db6155f6a531c7}{%
+           family={Serafini},
+           familyi={S\bibinitperiod},
+           given={Patricia\bibnamedelima P.},
+           giveni={P\bibinitperiod\bibinitdelim P\bibinitperiod}}}%
+        {{hash=811e373bd4d9bda3590970c2ff35523e}{%
+           family={Campos},
+           familyi={C\bibinitperiod},
+           given={Ivan\bibnamedelima B.},
+           giveni={I\bibinitperiod\bibinitdelim B\bibinitperiod}}}%
+        {{hash=64930324880757db0cdd79f0948221cc}{%
+           family={Gouvêa},
+           familyi={G\bibinitperiod},
+           given={Thiago\bibnamedelima S.},
+           giveni={T\bibinitperiod\bibinitdelim S\bibinitperiod}}}%
+        {{hash=7016fcec9bb93cc78034ffc66532c79d}{%
+           family={Sonntag},
+           familyi={S\bibinitperiod},
+           given={Daniel},
+           giveni={D\bibinitperiod}}}%
+      }
+      \strng{namehash}{18400332854926154ee47656130d69a6}
+      \strng{fullhash}{aa1af040bae31996b818ac011e65b7d3}
+      \strng{fullhashraw}{aa1af040bae31996b818ac011e65b7d3}
+      \strng{bibnamehash}{18400332854926154ee47656130d69a6}
+      \strng{authorbibnamehash}{18400332854926154ee47656130d69a6}
+      \strng{authornamehash}{18400332854926154ee47656130d69a6}
+      \strng{authorfullhash}{aa1af040bae31996b818ac011e65b7d3}
+      \strng{authorfullhashraw}{aa1af040bae31996b818ac011e65b7d3}
+      \field{sortinit}{K}
+      \field{sortinithash}{c02bf6bff1c488450c352b40f5d853ab}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{Passive Acoustic Monitoring (PAM) has emerged as a pivotal technology for wildlife monitoring, generating vast amounts of acoustic data. However, the successful application of machine learning methods for sound event detection in PAM datasets heavily relies on the availability of annotated data, which can be laborious to acquire. In this study, we investigate the effectiveness of transfer learning and active learning techniques to address the data annotation challenge in PAM. Transfer learning allows us to use pre-trained models from related tasks or datasets to bootstrap the learning process for sound event detection. Furthermore, active learning promises strategic selection of the most informative samples for annotation, effectively reducing the annotation cost and improving model performance. We evaluate an approach that combines transfer learning and active learning to efficiently exploit existing annotated data and optimize the annotation process for PAM datasets. Our transfer learning observations show that embeddings produced by BirdNet, a model trained on high signal-to-noise recordings of bird vocalisations, can be effectively used for predicting anurans in PAM data: a linear classifier constructed using these embeddings outperforms the benchmark by 21.7\%. Our results indicate that active learning is superior to random sampling, although no clear winner emerges among the strategies employed. The proposed method holds promise for facilitating broader adoption of machine learning techniques in PAM and advancing our understanding of biodiversity dynamics through acoustic data analysis.}
+      \field{issn}{15749541}
+      \field{journaltitle}{Ecological Informatics}
+      \field{langid}{english}
+      \field{month}{9}
+      \field{shortjournal}{Ecological Informatics}
+      \field{title}{Leveraging Transfer Learning and Active Learning for Data Annotation in Passive Acoustic Monitoring of Wildlife}
+      \field{urlday}{2}
+      \field{urlmonth}{11}
+      \field{urlyear}{2026}
+      \field{volume}{82}
+      \field{year}{2024}
+      \field{dateera}{ce}
+      \field{urldateera}{ce}
+      \field{pages}{102710}
+      \range{pages}{1}
+      \verb{doi}
+      \verb 10.1016/j.ecoinf.2024.102710
+      \endverb
+      \verb{file}
+      \verb C:\Users\Conservación Osa 9\Zotero\storage\JCSLNBTC\Kath et al. - 2024 - Leveraging transfer learning and active learning for data annotation in passive acoustic monitoring.pdf
+      \endverb
+      \verb{urlraw}
+      \verb https://linkinghub.elsevier.com/retrieve/pii/S1574954124002528
+      \endverb
+      \verb{url}
+      \verb https://linkinghub.elsevier.com/retrieve/pii/S1574954124002528
+      \endverb
+    \endentry
+    \entry{kiritchenkoLearningEvaluationPresence2006}{incollection}{}{}
+      \name{author}{4}{}{%
+        {{hash=b566bb471d34e64e4c863c07b944c04e}{%
+           family={Kiritchenko},
+           familyi={K\bibinitperiod},
+           given={Svetlana},
+           giveni={S\bibinitperiod}}}%
+        {{hash=104f2eda5c4afa015b91946b8b3d2c13}{%
+           family={Matwin},
+           familyi={M\bibinitperiod},
+           given={Stan},
+           giveni={S\bibinitperiod}}}%
+        {{hash=52c655da20af9d214a269db56e5193fc}{%
+           family={Nock},
+           familyi={N\bibinitperiod},
+           given={Richard},
+           giveni={R\bibinitperiod}}}%
+        {{hash=4191c4e77bdfb3dddf79433610b8e941}{%
+           family={Famili},
+           familyi={F\bibinitperiod},
+           given={A.\bibnamedelimi Fazel},
+           giveni={A\bibinitperiod\bibinitdelim F\bibinitperiod}}}%
+      }
+      \name{editor}{2}{}{%
+        {{hash=af276150c4edbf96352dfedc3ebce3f6}{%
+           family={Tawfik},
+           familyi={T\bibinitperiod},
+           given={Ahmed\bibnamedelima Y.},
+           giveni={A\bibinitperiod\bibinitdelim Y\bibinitperiod}}}%
+        {{hash=be05378c3802252ce4bf778e20fb16a3}{%
+           family={Goodwin},
+           familyi={G\bibinitperiod},
+           given={Scott\bibnamedelima D.},
+           giveni={S\bibinitperiod\bibinitdelim D\bibinitperiod}}}%
+      }
+      \name{editora}{13}{}{%
+        {{hash=45496c6a7530cfbfb4f3218a2602b77e}{%
+           family={Kanade},
+           familyi={K\bibinitperiod},
+           given={Takeo},
+           giveni={T\bibinitperiod}}}%
+        {{hash=9dd3a56c94774f5880ca7475fdc308ea}{%
+           family={Kittler},
+           familyi={K\bibinitperiod},
+           given={Josef},
+           giveni={J\bibinitperiod}}}%
+        {{hash=fb11814963625d418100ec9ca3710333}{%
+           family={Kleinberg},
+           familyi={K\bibinitperiod},
+           given={Jon\bibnamedelima M.},
+           giveni={J\bibinitperiod\bibinitdelim M\bibinitperiod}}}%
+        {{hash=e07c4272d13053fc36d770d4735f2c14}{%
+           family={Mattern},
+           familyi={M\bibinitperiod},
+           given={Friedemann},
+           giveni={F\bibinitperiod}}}%
+        {{hash=47dbc192a926109dd86ea18b25249a93}{%
+           family={Mitchell},
+           familyi={M\bibinitperiod},
+           given={John\bibnamedelima C.},
+           giveni={J\bibinitperiod\bibinitdelim C\bibinitperiod}}}%
+        {{hash=7d3ea70a5274b32c8a184dd4d844ee47}{%
+           family={Nierstrasz},
+           familyi={N\bibinitperiod},
+           given={Oscar},
+           giveni={O\bibinitperiod}}}%
+        {{hash=6bcab2334dc65214139b0ad45fe8185e}{%
+           family={Pandu\bibnamedelima Rangan},
+           familyi={P\bibinitperiod\bibinitdelim R\bibinitperiod},
+           given={C.},
+           giveni={C\bibinitperiod}}}%
+        {{hash=665b6687b4ed05721bf55d61032505ca}{%
+           family={Steffen},
+           familyi={S\bibinitperiod},
+           given={Bernhard},
+           giveni={B\bibinitperiod}}}%
+        {{hash=8753fbfaaa4aa8a1195c657edc9daef4}{%
+           family={Sudan},
+           familyi={S\bibinitperiod},
+           given={Madhu},
+           giveni={M\bibinitperiod}}}%
+        {{hash=cd9aa5de7673e375889cc32997ef97df}{%
+           family={Terzopoulos},
+           familyi={T\bibinitperiod},
+           given={Demetri},
+           giveni={D\bibinitperiod}}}%
+        {{hash=ddfb7c40f1ab7e805c025ac7ef922cc7}{%
+           family={Tygar},
+           familyi={T\bibinitperiod},
+           given={Dough},
+           giveni={D\bibinitperiod}}}%
+        {{hash=a4cf237a06b02ad7e7601b14b4d005be}{%
+           family={Vardi},
+           familyi={V\bibinitperiod},
+           given={Moshe\bibnamedelima Y.},
+           giveni={M\bibinitperiod\bibinitdelim Y\bibinitperiod}}}%
+        {{hash=e47f9d085c16045a5911784850208ada}{%
+           family={Weikum},
+           familyi={W\bibinitperiod},
+           given={Gerhard},
+           giveni={G\bibinitperiod}}}%
+      }
+      \list{location}{1}{%
+        {Berlin, Heidelberg}%
+      }
+      \list{publisher}{1}{%
+        {Springer Berlin Heidelberg}%
+      }
+      \strng{namehash}{d8ad49d8681ba9c6a0c73797548512f3}
+      \strng{fullhash}{58e014b8037370e2d899351f9702e23f}
+      \strng{fullhashraw}{58e014b8037370e2d899351f9702e23f}
+      \strng{bibnamehash}{d8ad49d8681ba9c6a0c73797548512f3}
+      \strng{authorbibnamehash}{d8ad49d8681ba9c6a0c73797548512f3}
+      \strng{authornamehash}{d8ad49d8681ba9c6a0c73797548512f3}
+      \strng{authorfullhash}{58e014b8037370e2d899351f9702e23f}
+      \strng{authorfullhashraw}{58e014b8037370e2d899351f9702e23f}
+      \strng{editorbibnamehash}{6eb6dd6f0ed7b9c4767912b1ebe4e696}
+      \strng{editornamehash}{6eb6dd6f0ed7b9c4767912b1ebe4e696}
+      \strng{editorfullhash}{6eb6dd6f0ed7b9c4767912b1ebe4e696}
+      \strng{editorfullhashraw}{6eb6dd6f0ed7b9c4767912b1ebe4e696}
+      \strng{editorabibnamehash}{6a6efaac772f68411a1df996fc025428}
+      \strng{editoranamehash}{6a6efaac772f68411a1df996fc025428}
+      \strng{editorafullhash}{4112fc48f66ed7d5b53622d41e14fe3f}
+      \strng{editorafullhashraw}{4112fc48f66ed7d5b53622d41e14fe3f}
+      \field{sortinit}{K}
+      \field{sortinithash}{c02bf6bff1c488450c352b40f5d853ab}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{shorttitle}
+      \field{abstract}{This paper deals with categorization tasks where categories are partially ordered to form a hierarchy. First, it introduces the notion of consistent classification which takes into account the semantics of a class hierarchy. Then, it presents a novel global hierarchical approach that produces consistent classification. This algorithm with AdaBoost as the underlying learning procedure significantly outperforms the corresponding “flat” approach, i.e. the approach that does not take into account the hierarchical information. In addition, the proposed algorithm surpasses the hierarchical local top-down approach on many synthetic and real tasks. For evaluation purposes, we use a novel hierarchical evaluation measure that has some attractive properties: it is simple, requires no parameter tuning, gives credit to partially correct classification and discriminates errors by both distance and depth in a class hierarchy.}
+      \field{booktitle}{Advances in {{Artificial Intelligence}}}
+      \field{editoratype}{redactor}
+      \field{isbn}{978-3-540-22004-6 978-3-540-24840-8}
+      \field{langid}{english}
+      \field{series}{Lecture {{Notes}} in {{Computer Science}}}
+      \field{shorttitle}{Learning and {{Evaluation}} in the {{Presence}} of {{Class Hierarchies}}}
+      \field{title}{Learning and {{Evaluation}} in the {{Presence}} of {{Class Hierarchies}}: {{Application}} to {{Text Categorization}}}
+      \field{urlday}{6}
+      \field{urlmonth}{11}
+      \field{urlyear}{2026}
+      \field{volume}{3060}
+      \field{year}{2006}
+      \field{dateera}{ce}
+      \field{urldateera}{ce}
+      \field{pages}{395\bibrangedash 406}
+      \range{pages}{12}
+      \verb{doi}
+      \verb 10.1007/11766247_34
+      \endverb
+      \verb{file}
+      \verb C:\Users\Conservación Osa 9\Zotero\storage\57LV2G6A\Kiritchenko et al. - 2006 - Learning and Evaluation in the Presence of Class Hierarchies Application to Text Categorization.pdf
+      \endverb
+      \verb{urlraw}
+      \verb http://link.springer.com/10.1007/11766247_34
+      \endverb
+      \verb{url}
+      \verb http://link.springer.com/10.1007/11766247_34
+      \endverb
+    \endentry
+    \entry{kuHierarchyAwareRepresentationLearning}{article}{}{}
+      \name{author}{3}{}{%
+        {{hash=c64677f854db2bec2aa1774137571b1e}{%
+           family={Ku},
+           familyi={K\bibinitperiod},
+           given={Keyhyun},
+           giveni={K\bibinitperiod}}}%
+        {{hash=88d5071cd41eabfec3b98d8aba400bf6}{%
+           family={Saghir},
+           familyi={S\bibinitperiod},
+           given={Rida},
+           giveni={R\bibinitperiod}}}%
+        {{hash=64930324880757db0cdd79f0948221cc}{%
+           family={Gouvêa},
+           familyi={G\bibinitperiod},
+           given={Thiago\bibnamedelima S},
+           giveni={T\bibinitperiod\bibinitdelim S\bibinitperiod}}}%
+      }
+      \strng{namehash}{77a3c1754dea0bf73fb59a4682ab258c}
+      \strng{fullhash}{77a3c1754dea0bf73fb59a4682ab258c}
+      \strng{fullhashraw}{77a3c1754dea0bf73fb59a4682ab258c}
+      \strng{bibnamehash}{77a3c1754dea0bf73fb59a4682ab258c}
+      \strng{authorbibnamehash}{77a3c1754dea0bf73fb59a4682ab258c}
+      \strng{authornamehash}{77a3c1754dea0bf73fb59a4682ab258c}
+      \strng{authorfullhash}{77a3c1754dea0bf73fb59a4682ab258c}
+      \strng{authorfullhashraw}{77a3c1754dea0bf73fb59a4682ab258c}
+      \field{sortinit}{K}
+      \field{sortinithash}{c02bf6bff1c488450c352b40f5d853ab}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{Bio-acoustic data is rich in information and carries meaningful hierarchies that can support different objectives towards ecological conservation. We take hierarchy-aware training objectives, originally developed for computer vision applications and transfer them to bioacoustic audio classification. We adapt four hierarchical learning objectives to audio embeddings from frozen domain-specific and multimodal audio models, and evaluate them on both a biological taxonomic hierarchy and a soundscape hierarchy. Across embedding models, hierarchy types, and single- vs. multi-label settings, we find that imposing hierarchical constraints improves classification even at finest and coarser level. While no single method wins universally, we observe larger margins in the multi-label PAM setting, and Focal Tree-Min performs best most often.}
+      \field{langid}{english}
+      \field{title}{Hierarchy-{{Aware Representation Learning}} for {{Bio}}-Acoustic {{Data}}}
+      \verb{file}
+      \verb C:\Users\Conservación Osa 9\Zotero\storage\PZYNE6LK\Ku et al. - Hierarchy-Aware Representation Learning for Bio-acoustic Data.pdf
+      \endverb
+    \endentry
+    \entry{lindholmAggregationStrategiesEfficient2025}{online}{}{}
+      \name{author}{4}{}{%
+        {{hash=dd963f17b70a48579d775af9dc183b49}{%
+           family={Lindholm},
+           familyi={L\bibinitperiod},
+           given={Richard},
+           giveni={R\bibinitperiod}}}%
+        {{hash=774e3758473d6e7b49e231a34cab3008}{%
+           family={Marklund},
+           familyi={M\bibinitperiod},
+           given={Oscar},
+           giveni={O\bibinitperiod}}}%
+        {{hash=37c6ba6530714be9ad3200d841f19362}{%
+           family={Mogren},
+           familyi={M\bibinitperiod},
+           given={Olof},
+           giveni={O\bibinitperiod}}}%
+        {{hash=c43282161fd4396f42c387c924d9e19b}{%
+           family={Martinsson},
+           familyi={M\bibinitperiod},
+           given={John},
+           giveni={J\bibinitperiod}}}%
+      }
+      \strng{namehash}{5a3cc42fd76bb3f3dee0e42d475c7135}
+      \strng{fullhash}{4233e67e5a20c1a31d4bb4446665adaa}
+      \strng{fullhashraw}{4233e67e5a20c1a31d4bb4446665adaa}
+      \strng{bibnamehash}{5a3cc42fd76bb3f3dee0e42d475c7135}
+      \strng{authorbibnamehash}{5a3cc42fd76bb3f3dee0e42d475c7135}
+      \strng{authornamehash}{5a3cc42fd76bb3f3dee0e42d475c7135}
+      \strng{authorfullhash}{4233e67e5a20c1a31d4bb4446665adaa}
+      \strng{authorfullhashraw}{4233e67e5a20c1a31d4bb4446665adaa}
+      \field{sortinit}{L}
+      \field{sortinithash}{7c47d417cecb1f4bd38d1825c427a61a}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{The vast amounts of audio data collected in Sound Event Detection (SED) applications require efficient annotation strategies to enable supervised learning. Manual labeling is expensive and time-consuming, making Active Learning (AL) a promising approach for reducing annotation effort. We introduce Top K Entropy, a novel uncertainty aggregation strategy for AL that prioritizes the most uncertain segments within an audio recording, instead of averaging uncertainty across all segments. This approach enables the selection of entire recordings for annotation, improving efficiency in sparse data scenarios. We compare Top K Entropy to random sampling and Mean Entropy, and show that fewer labels can lead to the same model performance, particularly in datasets with sparse sound events. Evaluations are conducted on audio mixtures of sound recordings from parks with meerkat, dog, and baby crying sound events, representing real-world bioacoustic monitoring scenarios. Using Top K Entropy for active learning, we can achieve comparable performance to training on the fully labeled dataset with only 8\% of the labels. Top K Entropy outperforms Mean Entropy, suggesting that it is best to let the most uncertain segments represent the uncertainty of an audio file. The findings highlight the potential of AL for scalable annotation in audio and timeseries applications, including bioacoustics.}
+      \field{day}{4}
+      \field{eprintclass}{cs.SD}
+      \field{eprinttype}{arXiv}
+      \field{langid}{english}
+      \field{month}{3}
+      \field{pubstate}{prepublished}
+      \field{title}{Aggregation {{Strategies}} for {{Efficient Annotation}} of {{Bioacoustic Sound Events Using Active Learning}}}
+      \field{urlday}{5}
+      \field{urlmonth}{11}
+      \field{urlyear}{2026}
+      \field{year}{2025}
+      \field{dateera}{ce}
+      \field{urldateera}{ce}
+      \verb{doi}
+      \verb 10.48550/arXiv.2503.02422
+      \endverb
+      \verb{eprint}
+      \verb 2503.02422
+      \endverb
+      \verb{file}
+      \verb C:\Users\Conservación Osa 9\Zotero\storage\4GBTLDF7\Lindholm et al. - 2025 - Aggregation Strategies for Efficient Annotation of Bioacoustic Sound Events Using Active Learning.pdf
+      \endverb
+      \verb{urlraw}
+      \verb http://arxiv.org/abs/2503.02422
+      \endverb
+      \verb{url}
+      \verb http://arxiv.org/abs/2503.02422
+      \endverb
+      \keyw{Computer Science - Machine Learning,Computer Science - Sound,Electrical Engineering and Systems Science - Audio and Speech Processing}
+    \endentry
+    \entry{manriqueAnuranCallSynthesis2025}{article}{}{}
+      \name{author}{3}{}{%
+        {{hash=724af55bf30c54827f8abbb24497c870}{%
+           family={Manrique},
+           familyi={M\bibinitperiod},
+           given={José\bibnamedelimb Sebastián\bibnamedelima Ñungo},
+           giveni={J\bibinitperiod\bibinitdelim S\bibinitperiod\bibinitdelim Ñ\bibinitperiod}}}%
+        {{hash=60553cc87f5961a4b792201f1e5f0f07}{%
+           family={Gómez},
+           familyi={G\bibinitperiod},
+           given={Francisco},
+           giveni={F\bibinitperiod}}}%
+        {{hash=8cab61055ca2b87cb75e073c5bb18e86}{%
+           family={Hernández-Romero},
+           familyi={H\bibinithyphendelim R\bibinitperiod},
+           given={Freddy},
+           giveni={F\bibinitperiod}}}%
+      }
+      \strng{namehash}{f76854aa72d97359339340db0e156e5b}
+      \strng{fullhash}{f76854aa72d97359339340db0e156e5b}
+      \strng{fullhashraw}{f76854aa72d97359339340db0e156e5b}
+      \strng{bibnamehash}{f76854aa72d97359339340db0e156e5b}
+      \strng{authorbibnamehash}{f76854aa72d97359339340db0e156e5b}
+      \strng{authornamehash}{f76854aa72d97359339340db0e156e5b}
+      \strng{authorfullhash}{f76854aa72d97359339340db0e156e5b}
+      \strng{authorfullhashraw}{f76854aa72d97359339340db0e156e5b}
+      \field{sortinit}{M}
+      \field{sortinithash}{4625c616857f13d17ce56f7d4f97d451}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{Addressing data scarcity in anuran bioacoustic monitoring, this study introduces diffusion probabilistic models (DPMs) for generating realistic calls and demonstrates their efficacy in data augmentation. A DPM framework combined with FID-based selection ensured synthetic call quality, with initial realism confirmed for Boana faber by human A/B tests. We then generated calls for nine species and evaluated DPM-based augmentation on severely imbalanced multi-species datasets. Our approach significantly improved F1 classification scores, especially for underrepresented species, outperforming a WGAN baseline. This highlights DPMs as a potent method to produce valuable synthetic bioacoustic data, enhancing AI-driven biodiversity monitoring.}
+      \field{issn}{15749541}
+      \field{journaltitle}{Ecological Informatics}
+      \field{langid}{english}
+      \field{month}{12}
+      \field{shortjournal}{Ecological Informatics}
+      \field{title}{Anuran Call Synthesis with Diffusion Models for Enhanced Bioacoustic Classification under Data Scarcity}
+      \field{urlday}{5}
+      \field{urlmonth}{11}
+      \field{urlyear}{2026}
+      \field{volume}{90}
+      \field{year}{2025}
+      \field{dateera}{ce}
+      \field{urldateera}{ce}
+      \field{pages}{103322}
+      \range{pages}{1}
+      \verb{doi}
+      \verb 10.1016/j.ecoinf.2025.103322
+      \endverb
+      \verb{file}
+      \verb C:\Users\Conservación Osa 9\Zotero\storage\VJCTDPT2\Manrique et al. - 2025 - Anuran call synthesis with diffusion models for enhanced bioacoustic classification under data scarc.pdf
+      \endverb
+      \verb{urlraw}
+      \verb https://linkinghub.elsevier.com/retrieve/pii/S1574954125003310
+      \endverb
+      \verb{url}
+      \verb https://linkinghub.elsevier.com/retrieve/pii/S1574954125003310
+      \endverb
+    \endentry
+    \entry{moummadMixtureMixupsMultilabel2024}{online}{}{}
+      \name{author}{5}{}{%
+        {{hash=bfa0f497b0b25d24985d8a903eb58324}{%
+           family={Moummad},
+           familyi={M\bibinitperiod},
+           given={Ilyass},
+           giveni={I\bibinitperiod}}}%
+        {{hash=5136f15a14da77bc18256d26c9caae2e}{%
+           family={Farrugia},
+           familyi={F\bibinitperiod},
+           given={Nicolas},
+           giveni={N\bibinitperiod}}}%
+        {{hash=729fa852b3c297ec98ee59039d338508}{%
+           family={Serizel},
+           familyi={S\bibinitperiod},
+           given={Romain},
+           giveni={R\bibinitperiod}}}%
+        {{hash=e97131ad85b7b06b50b3e64583aef424}{%
+           family={Froidevaux},
+           familyi={F\bibinitperiod},
+           given={Jeremy},
+           giveni={J\bibinitperiod}}}%
+        {{hash=fe1cce7a348327c06c814574cbd6d5ec}{%
+           family={Lostanlen},
+           familyi={L\bibinitperiod},
+           given={Vincent},
+           giveni={V\bibinitperiod}}}%
+      }
+      \strng{namehash}{f1f80794a07fff479e1e63bbd4a7d925}
+      \strng{fullhash}{ecd4f3f97add7c2d6265068c8097e4c0}
+      \strng{fullhashraw}{ecd4f3f97add7c2d6265068c8097e4c0}
+      \strng{bibnamehash}{f1f80794a07fff479e1e63bbd4a7d925}
+      \strng{authorbibnamehash}{f1f80794a07fff479e1e63bbd4a7d925}
+      \strng{authornamehash}{f1f80794a07fff479e1e63bbd4a7d925}
+      \strng{authorfullhash}{ecd4f3f97add7c2d6265068c8097e4c0}
+      \strng{authorfullhashraw}{ecd4f3f97add7c2d6265068c8097e4c0}
+      \field{sortinit}{M}
+      \field{sortinithash}{4625c616857f13d17ce56f7d4f97d451}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{Multi-label imbalanced classification poses a significant challenge in machine learning, particularly evident in bioacoustics where animal sounds often co-occur, and certain sounds are much less frequent than others. This paper focuses on the specific case of classifying anuran species sounds using the dataset AnuraSet, that contains both class imbalance and multi-label examples. To address these challenges, we introduce Mixture of Mixups (Mix2), a framework that leverages mixing regularization methods Mixup, Manifold Mixup, and MultiMix. Experimental results show that these methods, individually, may lead to suboptimal results; however, when applied randomly, with one selected at each training iteration, they prove effective in addressing the mentioned challenges, particularly for rare classes with few occurrences. Further analysis reveals that Mix2 is also proficient in classifying sounds across various levels of class cooccurrences. 1 Index Terms—Bioacoustics, deep learning, mixup, multi-label classification, class imbalance.}
+      \field{day}{21}
+      \field{eprintclass}{cs.SD}
+      \field{eprinttype}{arXiv}
+      \field{langid}{english}
+      \field{month}{6}
+      \field{pubstate}{prepublished}
+      \field{title}{Mixture of {{Mixups}} for {{Multi}}-Label {{Classification}} of {{Rare Anuran Sounds}}}
+      \field{urlday}{5}
+      \field{urlmonth}{11}
+      \field{urlyear}{2026}
+      \field{year}{2024}
+      \field{dateera}{ce}
+      \field{urldateera}{ce}
+      \verb{doi}
+      \verb 10.48550/arXiv.2403.09598
+      \endverb
+      \verb{eprint}
+      \verb 2403.09598
+      \endverb
+      \verb{file}
+      \verb C:\Users\Conservación Osa 9\Zotero\storage\N2Z7T2E2\Moummad et al. - 2024 - Mixture of Mixups for Multi-label Classification of Rare Anuran Sounds.pdf
+      \endverb
+      \verb{urlraw}
+      \verb http://arxiv.org/abs/2403.09598
+      \endverb
+      \verb{url}
+      \verb http://arxiv.org/abs/2403.09598
+      \endverb
+      \keyw{Computer Science - Machine Learning,Computer Science - Sound,Electrical Engineering and Systems Science - Audio and Speech Processing}
+    \endentry
+    \entry{parkSpecAugmentSimpleData2019}{inproceedings}{}{}
+      \name{author}{7}{}{%
+        {{hash=4db9c695c7b2eff82b0ed580851397a0}{%
+           family={Park},
+           familyi={P\bibinitperiod},
+           given={Daniel\bibnamedelima S.},
+           giveni={D\bibinitperiod\bibinitdelim S\bibinitperiod}}}%
+        {{hash=ab1fb800ced7899ad07a1f8377f5c41a}{%
+           family={Chan},
+           familyi={C\bibinitperiod},
+           given={William},
+           giveni={W\bibinitperiod}}}%
+        {{hash=9a4f4a1ff661cd600eb26523a5ba8bb4}{%
+           family={Zhang},
+           familyi={Z\bibinitperiod},
+           given={Yu},
+           giveni={Y\bibinitperiod}}}%
+        {{hash=a16597f6d78144232241757f5d6e401c}{%
+           family={Chiu},
+           familyi={C\bibinitperiod},
+           given={Chung-Cheng},
+           giveni={C\bibinithyphendelim C\bibinitperiod}}}%
+        {{hash=91aafc93e68e8c6a55e8cd804c2acaf2}{%
+           family={Zoph},
+           familyi={Z\bibinitperiod},
+           given={Barret},
+           giveni={B\bibinitperiod}}}%
+        {{hash=2fca729a4ff01c85c2e50c1fdf09b9f2}{%
+           family={Cubuk},
+           familyi={C\bibinitperiod},
+           given={Ekin\bibnamedelima D.},
+           giveni={E\bibinitperiod\bibinitdelim D\bibinitperiod}}}%
+        {{hash=c636f146591d51579a8119b777394878}{%
+           family={Le},
+           familyi={L\bibinitperiod},
+           given={Quoc\bibnamedelima V.},
+           giveni={Q\bibinitperiod\bibinitdelim V\bibinitperiod}}}%
+      }
+      \strng{namehash}{4cbb92447286e8eb4168459d9626ff34}
+      \strng{fullhash}{f30525e0dbbc225111a001c4aa5e62e1}
+      \strng{fullhashraw}{f30525e0dbbc225111a001c4aa5e62e1}
+      \strng{bibnamehash}{4cbb92447286e8eb4168459d9626ff34}
+      \strng{authorbibnamehash}{4cbb92447286e8eb4168459d9626ff34}
+      \strng{authornamehash}{4cbb92447286e8eb4168459d9626ff34}
+      \strng{authorfullhash}{f30525e0dbbc225111a001c4aa5e62e1}
+      \strng{authorfullhashraw}{f30525e0dbbc225111a001c4aa5e62e1}
+      \field{sortinit}{P}
+      \field{sortinithash}{ff3bcf24f47321b42cb156c2cc8a8422}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{shorttitle}
+      \field{abstract}{We present SpecAugment, a simple data augmentation method for speech recognition. SpecAugment is applied directly to the feature inputs of a neural network (i.e., filter bank coefficients). The augmentation policy consists of warping the features, masking blocks of frequency channels, and masking blocks of time steps. We apply SpecAugment on Listen, Attend and Spell networks for end-to-end speech recognition tasks. We achieve state-of-the-art performance on the LibriSpeech 960h and Swichboard 300h tasks, outperforming all prior work. On LibriSpeech, we achieve 6.8\% WER on test-other without the use of a language model, and 5.8\% WER with shallow fusion with a language model. This compares to the previous stateof-the-art hybrid system of 7.5\% WER. For Switchboard, we achieve 7.2\%/14.6\% on the Switchboard/CallHome portion of the Hub5’00 test set without the use of a language model, and 6.8\%/14.1\% with shallow fusion, which compares to the previous state-of-the-art hybrid system at 8.3\%/17.3\% WER.}
+      \field{booktitle}{Interspeech 2019}
+      \field{day}{15}
+      \field{eprintclass}{eess.AS}
+      \field{eprinttype}{arXiv}
+      \field{langid}{english}
+      \field{month}{9}
+      \field{shorttitle}{{{SpecAugment}}}
+      \field{title}{{{SpecAugment}}: {{A Simple Data Augmentation Method}} for {{Automatic Speech Recognition}}}
+      \field{urlday}{2}
+      \field{urlmonth}{11}
+      \field{urlyear}{2026}
+      \field{year}{2019}
+      \field{dateera}{ce}
+      \field{urldateera}{ce}
+      \field{pages}{2613\bibrangedash 2617}
+      \range{pages}{5}
+      \verb{doi}
+      \verb 10.21437/Interspeech.2019-2680
+      \endverb
+      \verb{eprint}
+      \verb 1904.08779
+      \endverb
+      \verb{file}
+      \verb C:\Users\Conservación Osa 9\Zotero\storage\64ITTT3H\Park et al. - 2019 - SpecAugment A Simple Data Augmentation Method for Automatic Speech Recognition.pdf
+      \endverb
+      \verb{urlraw}
+      \verb http://arxiv.org/abs/1904.08779
+      \endverb
+      \verb{url}
+      \verb http://arxiv.org/abs/1904.08779
+      \endverb
+      \keyw{Computer Science - Computation and Language,Computer Science - Machine Learning,Computer Science - Sound,Electrical Engineering and Systems Science - Audio and Speech Processing,Statistics - Machine Learning}
+    \endentry
+    \entry{settlesActiveLearningLiterature}{article}{}{}
+      \name{author}{1}{}{%
+        {{hash=9941c4d5402b5e6ceeb53599273e07a3}{%
+           family={Settles},
+           familyi={S\bibinitperiod},
+           given={Burr},
+           giveni={B\bibinitperiod}}}%
+      }
+      \strng{namehash}{9941c4d5402b5e6ceeb53599273e07a3}
+      \strng{fullhash}{9941c4d5402b5e6ceeb53599273e07a3}
+      \strng{fullhashraw}{9941c4d5402b5e6ceeb53599273e07a3}
+      \strng{bibnamehash}{9941c4d5402b5e6ceeb53599273e07a3}
+      \strng{authorbibnamehash}{9941c4d5402b5e6ceeb53599273e07a3}
+      \strng{authornamehash}{9941c4d5402b5e6ceeb53599273e07a3}
+      \strng{authorfullhash}{9941c4d5402b5e6ceeb53599273e07a3}
+      \strng{authorfullhashraw}{9941c4d5402b5e6ceeb53599273e07a3}
+      \field{sortinit}{S}
+      \field{sortinithash}{b164b07b29984b41daf1e85279fbc5ab}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{langid}{english}
+      \field{title}{Active {{Learning Literature Survey}}}
+      \verb{file}
+      \verb C:\Users\Conservación Osa 9\Zotero\storage\PS82TQ9L\Settles - Active Learning Literature Survey.pdf
+      \endverb
+    \endentry
+    \entry{vermaManifoldMixupBetter2019}{online}{}{}
+      \name{author}{8}{}{%
+        {{hash=1f6f02dafe2e94fe983f99ca4ec63c99}{%
+           family={Verma},
+           familyi={V\bibinitperiod},
+           given={Vikas},
+           giveni={V\bibinitperiod}}}%
+        {{hash=ef69d4db3429fa2ccff2c8ab6d0ff113}{%
+           family={Lamb},
+           familyi={L\bibinitperiod},
+           given={Alex},
+           giveni={A\bibinitperiod}}}%
+        {{hash=d96fd3ba171f97c8e3e7b5448f18361f}{%
+           family={Beckham},
+           familyi={B\bibinitperiod},
+           given={Christopher},
+           giveni={C\bibinitperiod}}}%
+        {{hash=72aae379e14075ea794cdf43b993d1af}{%
+           family={Najafi},
+           familyi={N\bibinitperiod},
+           given={Amir},
+           giveni={A\bibinitperiod}}}%
+        {{hash=e7fbb560b8f6fd4003bc50b9316b1821}{%
+           family={Mitliagkas},
+           familyi={M\bibinitperiod},
+           given={Ioannis},
+           giveni={I\bibinitperiod}}}%
+        {{hash=ccec1ccd2e1aa86960eb2e872c6b7020}{%
+           family={Courville},
+           familyi={C\bibinitperiod},
+           given={Aaron},
+           giveni={A\bibinitperiod}}}%
+        {{hash=47d681c0cbae75196012a538c46ccc06}{%
+           family={Lopez-Paz},
+           familyi={L\bibinithyphendelim P\bibinitperiod},
+           given={David},
+           giveni={D\bibinitperiod}}}%
+        {{hash=40a8e4774982146adc2688546f54efb2}{%
+           family={Bengio},
+           familyi={B\bibinitperiod},
+           given={Yoshua},
+           giveni={Y\bibinitperiod}}}%
+      }
+      \strng{namehash}{97a9a175ae2d679a9d76a265953e389b}
+      \strng{fullhash}{852e39177780fff5ea048eeb0d09f21e}
+      \strng{fullhashraw}{852e39177780fff5ea048eeb0d09f21e}
+      \strng{bibnamehash}{97a9a175ae2d679a9d76a265953e389b}
+      \strng{authorbibnamehash}{97a9a175ae2d679a9d76a265953e389b}
+      \strng{authornamehash}{97a9a175ae2d679a9d76a265953e389b}
+      \strng{authorfullhash}{852e39177780fff5ea048eeb0d09f21e}
+      \strng{authorfullhashraw}{852e39177780fff5ea048eeb0d09f21e}
+      \field{sortinit}{V}
+      \field{sortinithash}{afb52128e5b4dc4b843768c0113d673b}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{shorttitle}
+      \field{abstract}{Deep neural networks excel at learning the training data, but often provide incorrect and confident predictions when evaluated on slightly different test examples. This includes distribution shifts, outliers, and adversarial examples. To address these issues, we propose Manifold Mixup, a simple regularizer that encourages neural networks to predict less confidently on interpolations of hidden representations. Manifold Mixup leverages semantic interpolations as additional training signal, obtaining neural networks with smoother decision boundaries at multiple levels of representation. As a result, neural networks trained with Manifold Mixup learn class-representations with fewer directions of variance. We prove theory on why this flattening happens under ideal conditions, validate it on practical situations, and connect it to previous works on information theory and generalization. In spite of incurring no significant computation and being implemented in a few lines of code, Manifold Mixup improves strong baselines in supervised learning, robustness to single-step adversarial attacks, and test log-likelihood.}
+      \field{day}{11}
+      \field{eprintclass}{stat.ML}
+      \field{eprinttype}{arXiv}
+      \field{langid}{english}
+      \field{month}{5}
+      \field{pubstate}{prepublished}
+      \field{shorttitle}{Manifold {{Mixup}}}
+      \field{title}{Manifold {{Mixup}}: {{Better Representations}} by {{Interpolating Hidden States}}}
+      \field{urlday}{6}
+      \field{urlmonth}{11}
+      \field{urlyear}{2026}
+      \field{year}{2019}
+      \field{dateera}{ce}
+      \field{urldateera}{ce}
+      \verb{doi}
+      \verb 10.48550/arXiv.1806.05236
+      \endverb
+      \verb{eprint}
+      \verb 1806.05236
+      \endverb
+      \verb{file}
+      \verb C:\Users\Conservación Osa 9\Zotero\storage\ZYDXKEC5\Verma et al. - 2019 - Manifold Mixup Better Representations by Interpolating Hidden States.pdf
+      \endverb
+      \verb{urlraw}
+      \verb http://arxiv.org/abs/1806.05236
+      \endverb
+      \verb{url}
+      \verb http://arxiv.org/abs/1806.05236
+      \endverb
+      \keyw{Computer Science - Artificial Intelligence,Computer Science - Machine Learning,Computer Science - Neural and Evolutionary Computing,Statistics - Machine Learning}
+    \endentry
+    \entry{yuanPositiveLabelAll2024}{online}{}{}
+      \name{author}{3}{}{%
+        {{hash=a5f4852563a45cc9451b7bc0ec05c6c9}{%
+           family={Yuan},
+           familyi={Y\bibinitperiod},
+           given={Zhixiang},
+           giveni={Z\bibinitperiod}}}%
+        {{hash=f7acaeafd791ecf7ac92a74b6e1b5e22}{%
+           family={Zhang},
+           familyi={Z\bibinitperiod},
+           given={Kaixin},
+           giveni={K\bibinitperiod}}}%
+        {{hash=f39d73c2040236ebf9896a42646cfa06}{%
+           family={Huang},
+           familyi={H\bibinitperiod},
+           given={Tao},
+           giveni={T\bibinitperiod}}}%
+      }
+      \strng{namehash}{c27aab9030534341227ee53d629b15a3}
+      \strng{fullhash}{c27aab9030534341227ee53d629b15a3}
+      \strng{fullhashraw}{c27aab9030534341227ee53d629b15a3}
+      \strng{bibnamehash}{c27aab9030534341227ee53d629b15a3}
+      \strng{authorbibnamehash}{c27aab9030534341227ee53d629b15a3}
+      \strng{authornamehash}{c27aab9030534341227ee53d629b15a3}
+      \strng{authorfullhash}{c27aab9030534341227ee53d629b15a3}
+      \strng{authorfullhashraw}{c27aab9030534341227ee53d629b15a3}
+      \field{sortinit}{Y}
+      \field{sortinithash}{fd67ad5a9ef0f7456bdd9aab10fe1495}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{Multi-label classification (MLC) faces challenges from label noise in training data due to annotating diverse semantic labels for each image. Current methods mainly target identifying and correcting label mistakes using trained MLC models, but still struggle with persistent noisy labels during training, resulting in imprecise recognition and reduced performance. Our paper addresses label noise in MLC by introducing a positive and unlabeled multi-label classification (PUMLC) method. To counteract noisy labels, we directly discard negative labels, focusing on the abundance of negative labels and the origin of most noisy labels. PU-MLC employs positiveunlabeled learning, training the model with only positive labels and unlabeled data. The method incorporates adaptive re-balance factors and temperature coefficients in the loss function to address label distribution imbalance and prevent over-smoothing of probabilities during training. Additionally, we introduce a local-global convolution module to capture both local and global dependencies in the image without requiring backbone retraining. PU-MLC proves effective on MLC and MLC with partial labels (MLC-PL) tasks, demonstrating significant improvements on MSCOCO and PASCAL VOC datasets with fewer annotations. Code is available at: https://github.com/TAKELAMAG/PU-MLC.}
+      \field{day}{16}
+      \field{eprintclass}{cs.CV}
+      \field{eprinttype}{arXiv}
+      \field{langid}{english}
+      \field{month}{4}
+      \field{pubstate}{prepublished}
+      \field{title}{Positive {{Label Is All You Need}} for {{Multi-Label Classification}}}
+      \field{urlday}{2}
+      \field{urlmonth}{11}
+      \field{urlyear}{2026}
+      \field{year}{2024}
+      \field{dateera}{ce}
+      \field{urldateera}{ce}
+      \verb{doi}
+      \verb 10.48550/arXiv.2306.16016
+      \endverb
+      \verb{eprint}
+      \verb 2306.16016
+      \endverb
+      \verb{file}
+      \verb C:\Users\Conservación Osa 9\Zotero\storage\A742C2EF\Yuan et al. - 2024 - Positive Label Is All You Need for Multi-Label Classification.pdf
+      \endverb
+      \verb{urlraw}
+      \verb http://arxiv.org/abs/2306.16016
+      \endverb
+      \verb{url}
+      \verb http://arxiv.org/abs/2306.16016
+      \endverb
+      \keyw{Computer Science - Computer Vision and Pattern Recognition}
+    \endentry
+    \entry{zhangMixupEmpiricalRisk2018}{online}{}{}
+      \name{author}{4}{}{%
+        {{hash=2055fe99efa178d6f877d718047b0390}{%
+           family={Zhang},
+           familyi={Z\bibinitperiod},
+           given={Hongyi},
+           giveni={H\bibinitperiod}}}%
+        {{hash=c55edd870afd5174d08d32e8560235f0}{%
+           family={Cisse},
+           familyi={C\bibinitperiod},
+           given={Moustapha},
+           giveni={M\bibinitperiod}}}%
+        {{hash=ea1ca71b064fbb7ec15bd2e49e287ea9}{%
+           family={Dauphin},
+           familyi={D\bibinitperiod},
+           given={Yann\bibnamedelima N.},
+           giveni={Y\bibinitperiod\bibinitdelim N\bibinitperiod}}}%
+        {{hash=47d681c0cbae75196012a538c46ccc06}{%
+           family={Lopez-Paz},
+           familyi={L\bibinithyphendelim P\bibinitperiod},
+           given={David},
+           giveni={D\bibinitperiod}}}%
+      }
+      \strng{namehash}{47ed15e39b226ffdc3da65f48de59b1f}
+      \strng{fullhash}{99e17545100e06ee9db2c0f295e2db48}
+      \strng{fullhashraw}{99e17545100e06ee9db2c0f295e2db48}
+      \strng{bibnamehash}{47ed15e39b226ffdc3da65f48de59b1f}
+      \strng{authorbibnamehash}{47ed15e39b226ffdc3da65f48de59b1f}
+      \strng{authornamehash}{47ed15e39b226ffdc3da65f48de59b1f}
+      \strng{authorfullhash}{99e17545100e06ee9db2c0f295e2db48}
+      \strng{authorfullhashraw}{99e17545100e06ee9db2c0f295e2db48}
+      \field{sortinit}{Z}
+      \field{sortinithash}{96892c0b0a36bb8557c40c49813d48b3}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{shorttitle}
+      \field{abstract}{Large deep neural networks are powerful, but exhibit undesirable behaviors such as memorization and sensitivity to adversarial examples. In this work, we propose mixup, a simple learning principle to alleviate these issues. In essence, mixup trains a neural network on convex combinations of pairs of examples and their labels. By doing so, mixup regularizes the neural network to favor simple linear behavior in-between training examples. Our experiments on the ImageNet-2012, CIFAR-10, CIFAR-100, Google commands and UCI datasets show that mixup improves the generalization of state-of-the-art neural network architectures. We also find that mixup reduces the memorization of corrupt labels, increases the robustness to adversarial examples, and stabilizes the training of generative adversarial networks.}
+      \field{day}{27}
+      \field{eprintclass}{cs.LG}
+      \field{eprinttype}{arXiv}
+      \field{langid}{english}
+      \field{month}{4}
+      \field{pubstate}{prepublished}
+      \field{shorttitle}{Mixup}
+      \field{title}{Mixup: {{Beyond Empirical Risk Minimization}}}
+      \field{urlday}{10}
+      \field{urlmonth}{11}
+      \field{urlyear}{2026}
+      \field{year}{2018}
+      \field{dateera}{ce}
+      \field{urldateera}{ce}
+      \verb{doi}
+      \verb 10.48550/arXiv.1710.09412
+      \endverb
+      \verb{eprint}
+      \verb 1710.09412
+      \endverb
+      \verb{file}
+      \verb C:\Users\Conservación Osa 9\Zotero\storage\C8NDNICG\Zhang et al. - 2018 - mixup Beyond Empirical Risk Minimization.pdf
+      \endverb
+      \verb{urlraw}
+      \verb http://arxiv.org/abs/1710.09412
+      \endverb
+      \verb{url}
+      \verb http://arxiv.org/abs/1710.09412
+      \endverb
+      \keyw{Computer Science - Machine Learning,Statistics - Machine Learning}
+    \endentry
+  \enddatalist
+\endrefsection
+\endinput
+

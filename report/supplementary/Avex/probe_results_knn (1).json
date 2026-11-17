@@ -1,0 +1,133 @@
+{
+  "overall": {
+    "macro_accuracy": 0.7126845275015508,
+    "micro_accuracy": 0.9204545454545454,
+    "auc": 0.9921315385255263,
+    "macro_f1": 0.7546617311834704,
+    "micro_f1": 0.9204545454545454
+  },
+  "items_per_class": {
+    "DENMIC": 53,
+    "DENEBR": 14,
+    "ENGPUS": 69,
+    "ELAPER": 5,
+    "LEPFRA": 123
+  },
+  "per_class_accuracy": {
+    "DENMIC": 0.9811320754716981,
+    "DENEBR": 0.5,
+    "ENGPUS": 0.8985507246376812,
+    "ELAPER": 0.2,
+    "LEPFRA": 0.983739837398374
+  },
+  "config": {
+    "main_results_dir": "bacpipe_results",
+    "embed_parent_dir": "embeddings",
+    "dim_reduc_parent_dir": "dim_reduced_embeddings",
+    "evaluations_dir": "evaluations",
+    "model_base_path": "bacpipe_model_checkpoints",
+    "global_batch_size": 8,
+    "audio_suffixes": [
+      ".wav",
+      ".WAV",
+      ".aif",
+      ".mp3",
+      ".MP3",
+      ".flac",
+      ".ogg"
+    ],
+    "padding": "wrap",
+    "avoid_pipelined_gpu_inference": false,
+    "nr_parallel_workers": false,
+    "rm_embedding_on_keyboard_interrupt": false,
+    "check_if_already_processed": true,
+    "check_if_already_dim_reduced": true,
+    "annotations_filename": "annotations.csv",
+    "only_embed_annotations": false,
+    "min_annotation_length": 0,
+    "metadata_label_keys": [
+      "time_of_day",
+      "week_of_year",
+      "day_of_year",
+      "continuous_timestamp",
+      "parent_directory",
+      "audio_file_name"
+    ],
+    "max_labels_per_timestamp": 30,
+    "min_label_occurrences": 30,
+    "bool_filter_labels": false,
+    "run_pretrained_classifier": true,
+    "classifier_threshold": 0.5,
+    "save_raven_tables": true,
+    "train_ratio": 0.65,
+    "test_ratio": 0.2,
+    "probe_configs": {
+      "config_1": {
+        "bool": true,
+        "name": "linear",
+        "learning_rate": 0.0005,
+        "batch_size": 64,
+        "num_epochs": 20,
+        "dataset_csv_path": "probing_dataframe.csv",
+        "shuffle": true
+      },
+      "config_2": {
+        "bool": true,
+        "name": "knn",
+        "n_neighbors": 15,
+        "dataset_csv_path": "probing_dataframe.csv"
+      }
+    },
+    "evaluate_with_silhouette": false,
+    "clust_configs": {
+      "config_1": {
+        "bool": true,
+        "name": "kmeans",
+        "params": {
+          "n_clusters": "None"
+        }
+      },
+      "config_2": {
+        "bool": false,
+        "name": "hdbscan",
+        "params": {
+          "min_cluster_size": 10,
+          "min_samples": 5,
+          "metric": "euclidean"
+        }
+      }
+    },
+    "visualization_dimensions": 2,
+    "nr_predictions_to_display": 3,
+    "max_nr_categories": 55,
+    "dashboard_port": 5006,
+    "dashboard_address": "localhost",
+    "dashboard_websocket_origin": false,
+    "embed_fig_height": 700,
+    "spectrogram_plot_height": 550,
+    "heatmap_fig_height": 600,
+    "accordion_width": 780,
+    "spec_colorscale": "Viridis",
+    "color_continuous": "Twilight",
+    "bool_change_speed": false,
+    "new_speed": 0.1,
+    "testing": false,
+    "bool": true,
+    "n_neighbors": 15,
+    "audio_dir": "data/audio",
+    "dashboard": true,
+    "models": [
+      "aves_especies",
+      "birdnet",
+      "perch_v2",
+      "avex_model"
+    ],
+    "already_computed": false,
+    "CustomModels": [
+      null,
+      null,
+      null,
+      "<class 'custom_models.avex_especies.AvexModel'>"
+    ]
+  }
+}
