@@ -1,0 +1,6 @@
+functions-framework>=3,<4
+Flask>=3,<4
+google-cloud-bigquery>=3.46,<4
+google-cloud-storage>=3.17,<4
+google-auth>=2,<3
+PyJWT>=2.10,<3

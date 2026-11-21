@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Browse annotations · Osa Anurans</title>
+  <link rel="stylesheet" href="/browser.css">
+  <script type="module" src="/browser.mjs"></script>
+</head>
+<body>
+  <header>
+    <p class="eyebrow">Osa Anurans · Local collection</p>
+    <h1>Browse annotations</h1>
+    <p id="snapshot-status">Loading saved annotations…</p>
+    <details class="refresh-help"><summary>Get newer annotations</summary>
+      <ol>
+        <li>In the PowerShell window running the annotation browser, press <strong>Ctrl+C</strong> to stop it.</li>
+        <li>Go to the repository folder:<pre><code>cd C:\OsaAnurans</code></pre></li>
+        <li>Fetch the latest annotations using the app's Python:<pre><code>.\osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli refresh</code></pre></li>
+        <li>When the refresh finishes, restart the annotation browser:<pre><code>.\osa_anurans_app\.venv\Scripts\python.exe -m osa_anurans_app.src.cli browse</code></pre></li>
+        <li>Open the local URL printed in PowerShell to see the refreshed annotations.</li>
+      </ol>
+      <p>Reloading this page alone does not fetch newer annotations. These commands use the app's environment directly, so you do not need to activate it.</p>
+    </details>
+  </header>
+  <main>
+    <section class="filters" aria-label="Filter annotations">
+      <label>Species<select id="species-filter"><option value="">All species</option></select></label>
+      <label>Answer<select id="response-filter"><option value="">All answers</option><option value="present">Present</option><option value="absent">Absent</option><option value="unsure">Unsure</option></select></label>
+      <label>Annotator<select id="annotator-filter"><option value="">All annotators</option></select></label>
+      <label class="search-label">Search clips<input id="search" type="search" placeholder="Recording filename or window ID"></label>
+    </section>
+    <p id="load-status" role="status">Loading…</p>
+    <div class="workspace">
+      <section class="results" aria-label="Annotation rows">
+        <div class="results-heading"><h2>Annotations</h2><p id="result-count" aria-live="polite"></p></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th scope="col">Species</th><th scope="col">Answer</th><th scope="col">Annotator</th><th scope="col">Annotated</th><th scope="col">Recording / source offset</th></tr></thead>
+            <tbody id="annotation-rows"></tbody>
+          </table>
+        </div>
+        <nav class="pagination" aria-label="Annotation pages">
+          <button id="previous-page" type="button" disabled>Previous</button>
+          <span id="page-status">Page 1 of 1</span>
+          <button id="next-page" type="button" disabled>Next</button>
+        </nav>
+      </section>
+      <aside class="clip-panel" aria-labelledby="selected-title">
+        <p class="eyebrow">Selected annotation</p>
+        <h2 id="selected-title">Choose an annotation</h2>
+        <p id="selected-summary">Select a species in the table to listen to its clip.</p>
+        <audio id="clip-audio" controls preload="metadata" hidden></audio>
+        <p id="media-status" role="status"></p>
+        <div id="spectrogram"></div>
+        <dl id="annotation-details"></dl>
+      </aside>
+    </div>
+  </main>
+</body>
+</html>

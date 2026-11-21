@@ -1,0 +1,578 @@
+/* Base page layout and typography. */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+.annotate-card {
+    width: 100%;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+}
+
+.annotate-card h2 {
+    font-size: 1.2rem;
+    margin: 0 0 12px;
+}
+
+.annotate-card h3 {
+    font-size: 1rem;
+    margin: 0 0 8px;
+}
+
+.annotate-card p {
+    line-height: 1.5;
+    margin: 4px 0;
+}
+
+.annotate-card section,
+.annotate-card details {
+    min-width: 0;
+    width: 100%;
+}
+
+#mode-note {
+    font-size: 0.9rem;
+}
+
+#scientific {
+    width: 100%;
+    margin-bottom: 16px;
+    padding: 12px;
+    font: inherit;
+    border: 1px solid #526b52;
+    border-radius: 5px;
+}
+
+/* Shared reference cards and media controls. */
+.annotate-card .frog-card {
+    width: 100%;
+    max-width: none;
+    height: auto;
+    padding: 16px;
+    align-items: stretch;
+}
+
+#frog-card .frog-card {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 8px 16px;
+    text-align: left;
+}
+
+#frog-card h3,
+#frog-card p {
+    grid-column: 1 / -1;
+}
+
+#frog-card .frog-card > .media-image img {
+    max-height: 140px;
+}
+
+.reference-clips {
+    display: flex;
+    overflow-x: auto;
+    gap: 16px;
+    min-width: 0;
+}
+
+.reference-clips .audio-clip {
+    flex: 0 0 100%;
+    min-width: 0;
+}
+
+.annotate-card img {
+    width: 100%;
+    object-fit: contain;
+}
+
+.annotate-card audio {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+}
+
+.annotate-card summary {
+    cursor: pointer;
+    padding: 12px 0;
+    font-weight: bold;
+}
+
+.frog-carousel {
+    width: 100%;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 260px;
+    grid-template-rows: auto auto auto auto auto;
+    align-items: stretch;
+    gap: 3px 10px;
+}
+
+.frog-carousel > li {
+    display: grid;
+    grid-row: span 5;
+    grid-template-rows: subgrid;
+    min-width: 0;
+}
+
+.frog-carousel .frog-card {
+    display: grid;
+    grid-row: span 5;
+    grid-template-rows: subgrid;
+    justify-content: stretch;
+}
+
+.frog-carousel .frog-card > h3 {
+    grid-row: 1;
+    margin: 0;
+}
+
+.frog-carousel .frog-card > p {
+    grid-row: 2;
+    margin: 0;
+}
+
+.frog-carousel .frog-card > .media-image {
+    grid-row: 3;
+}
+
+.frog-carousel .frog-card > .media-image img {
+    height: 100px;
+}
+
+.frog-carousel .reference-navigation { grid-row: 4; margin: 0; }
+
+.frog-carousel .reference-clips {
+    grid-row: 5;
+    align-self: stretch;
+}
+
+.frog-carousel .audio-clip { width: 100%; }
+.frog-carousel .reference-spectrogram-slot {
+    width: 100%;
+    aspect-ratio: 2 / 1;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    min-width: 0;
+}
+.frog-carousel .reference-spectrogram-slot > .media-image {
+    position: relative;
+    width: 100%; height: 100%; min-height: 0;
+}
+.frog-carousel .reference-spectrogram-slot img {
+    display: block;
+    width: 100%; height: 100%; object-fit: contain;
+}
+.frog-carousel .reference-spectrogram-slot .media-loading {
+    position: absolute; top: 4px; left: 4px; right: 4px;
+    margin: 0; padding: 4px; background: #f5f8f3;
+}
+.frog-carousel .reference-spectrogram-placeholder {
+    background: #e8efe4; color: #52645b; font-size: .85rem;
+    padding: 8px; text-align: center;
+}
+
+/* Clip cards and explicit Yes / No / Unsure answers. */
+.results-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+    padding: 0;
+    gap: 16px;
+}
+
+.results-list > li {
+    min-width: 0;
+    margin: 0;
+    padding: 16px;
+    background: #c1daff;
+    border: 1px solid #64829c;
+}
+
+.results-list > li:nth-child(even) {
+    background: rgb(126, 187, 187);
+}
+
+.answer-options {
+    border: 0;
+    padding: 0;
+    margin: 12px 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.answer-options legend {
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+}
+
+.answer-options label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 8px;
+    background: aliceblue;
+    border: 2px solid transparent;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.answer-options label:has(input:checked) {
+    border-color: #006411;
+    background: #d7efcd;
+    font-weight: bold;
+}
+
+.annotate-card button {
+    font: inherit;
+    padding: 12px 16px;
+    border-radius: 5px;
+    border: 1px solid #526b52;
+    cursor: pointer;
+}
+
+.annotate-card button:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.annotate-card :focus-visible {
+    outline: 3px solid #164c89;
+    outline-offset: 3px;
+}
+
+/* Keep progress and saving available at the bottom of the viewport. */
+.save-bar {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: #e5f1df;
+    border: 1px solid #526b52;
+    border-radius: 5px;
+    z-index: 1;
+}
+
+#sendButton {
+    background: #006411;
+    color: white;
+}
+
+.media-error {
+    font-size: 0.85rem;
+    color: #682616;
+}
+
+/* Smaller phones: reduce spacing and keep controls within the viewport. */
+@media (max-width: 560px) {
+    .annotate-card {
+        padding: 16px;
+    }
+    .results-list {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    #frog-card .frog-card {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    #frog-card .frog-card > .media-image img {
+        display: none;
+    }
+    .navbar a {
+        font-size: 18px;
+        margin: 8px;
+    }
+}
+
+/* Desktop comparison workspace: equally wide reference and clip columns.
+   Later target-specific rules override the shared card/carousel styles above. */
+.container {
+    max-width: 1120px;
+}
+
+.annotation-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+}
+
+.reference-panel {
+    position: sticky;
+    top: 12px;
+    /* Keep the carousel scrollbar above the sticky save bar, with a gap. */
+    max-height: calc(100dvh - var(--save-bar-height, 90px) - 24px);
+    overflow-y: auto;
+    min-width: 0;
+    padding: 4px;
+}
+
+.target-reference {
+    background: #a5cf9a;
+}
+
+#frog-card .frog-card {
+    display: flex;
+    gap: 6px;
+    text-align: left;
+}
+
+#frog-card .frog-card > h3,
+#frog-card .frog-card > p { margin: 0; }
+
+#frog-card .frog-card > .media-image {
+    display: none;
+}
+
+#frog-card select {
+    width: 100%;
+    padding: 8px;
+    font: inherit;
+}
+
+#frog-card .reference-clips {
+    display: block;
+    overflow: visible;
+}
+
+#frog-card audio {
+    max-width: none;
+}
+
+.reference-spectrogram summary {
+    font-size: 0.9rem;
+}
+
+.reference-spectrogram img,
+.results-list .audio-clip > .media-image img {
+    aspect-ratio: 2 / 1;
+}
+
+.results-list {
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: 16px;
+}
+
+.results-list > li {
+    scroll-margin-top: 16px;
+}
+
+.other-references {
+    margin-top: 16px;
+}
+
+/* Keep this breakpoint aligned with mobileLayout in annotate.js. */
+@media (max-width: 760px) {
+    .annotation-workspace {
+        display: block;
+    }
+    /* Remove the sidebar box so only its target section stays sticky.
+       Other frog references remain in normal page flow below it. */
+    .reference-panel {
+        display: contents;
+    }
+    .target-reference {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        padding: 8px 0;
+        border-bottom: 2px solid #526b52;
+    }
+    #target-heading {
+        font-size: 1rem;
+        margin-bottom: 6px;
+    }
+    #frog-card .frog-card {
+        padding: 10px;
+        gap: 4px;
+    }
+    #frog-card .frog-card > p {
+        display: none;
+    }
+    #frog-card .audio-clip {
+        display: flex;
+        flex-direction: column;
+    }
+    #frog-card audio {
+        order: -1;
+        margin: 0;
+        height: 40px;
+    }
+    #frog-card .reference-spectrogram summary {
+        padding: 6px 0;
+    }
+    #frog-card .reference-spectrogram[open] {
+        max-height: 25dvh;
+        overflow-y: auto;
+    }
+    .other-references {
+        margin: 12px 0 24px;
+    }
+    .results-list > li {
+        scroll-margin-top: 260px;
+    }
+}
+
+.media-loading { color: #52645b; font-size: 0.9rem; margin: 6px 0; }
+.target-media-status, .target-request-status {
+    padding: 12px 14px; margin: 10px 0; border: 1px solid #9aafbf;
+    border-radius: 6px; background: #e8f2fc; color: #183d60;
+}
+.target-media-status strong, .target-media-status span { display: block; }
+.target-media-status span { margin-top: 4px; font-size: .9rem; }
+.target-media-status.is-error { background: #fff3df; color: #694216; border-color: #c9a36b; }
+.target-media-status.is-loading strong::before, .target-request-status::before {
+    content: ""; display: inline-block; width: 14px; height: 14px;
+    margin-right: 8px; border: 2px solid currentColor; border-right-color: transparent;
+    border-radius: 50%; vertical-align: -2px; animation: reference-loading-spin .8s linear infinite;
+}
+@keyframes reference-loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+    .target-media-status.is-loading strong::before, .target-request-status::before { animation: none; }
+}
+
+.results-list .audio-clip .media-image img.generated-spectrogram {
+    aspect-ratio: auto;
+    height: auto;
+}
+
+.reference-navigation {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin: 4px 0;
+}
+
+.reference-navigation button {
+    margin: 0;
+    min-width: 44px;
+    min-height: 44px;
+}
+
+.reference-navigation button:disabled {
+    opacity: 0.4;
+}
+
+.reference-navigation-placeholder { visibility: hidden; pointer-events: none; }
+
+[hidden] { display: none !important; }
+#login-form { display: grid; gap: 12px; max-width: 420px; }
+.password-field { position: relative; }
+#annotator-password {
+    width: 100%; min-height: 44px; padding: 10px 52px 10px 12px;
+    border: 1px solid #829782; border-radius: 6px; font: inherit;
+}
+#annotator-password::-ms-reveal { display: none; }
+.annotate-card #toggle-password {
+    position: absolute; right: 2px; top: 50%; transform: translateY(-50%);
+    display: grid; place-items: center; width: 44px; height: 40px;
+    padding: 0; margin: 0; border: 0; border-radius: 4px;
+    background: transparent; color: #304d35;
+}
+#toggle-password:hover { background: #e8efe4; }
+#toggle-password:focus-visible { outline: 2px solid #304d35; outline-offset: -2px; }
+.annotator-bar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 16px;
+    margin: 16px 0 24px;
+    border: 1px solid #d6dfd6;
+    border-radius: 10px;
+    background: #f5f8f3;
+}
+
+.annotator-name-field {
+    flex: 1;
+    min-width: 0;
+    max-width: 420px;
+    display: grid;
+    gap: 6px;
+}
+
+.annotator-name-field label {
+    margin: 0;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+#annotator-name {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 44px;
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid #829782;
+    border-radius: 6px;
+    background: white;
+    color: #24372b;
+    font: inherit;
+}
+
+#logout-button {
+    flex-shrink: 0;
+    min-height: 44px;
+    margin: 0;
+    padding: 10px 16px;
+    border: 1px solid #829782;
+    border-radius: 6px;
+    background: transparent;
+    color: #304d35;
+    font: inherit;
+}
+
+#logout-button:hover { background: #e8efe4; }
+
+@media (max-width: 480px) {
+    .annotator-bar { flex-wrap: wrap; gap: 12px; }
+    .annotator-name-field { flex-basis: 100%; max-width: none; }
+    #logout-button { margin-left: auto; }
+}
+#login-error { color: #9a2424; }
+/* Keep the species totals readable on phones without widening the page. */
+#annotation-summary { margin: 1.5rem 0; }
+#annotation-summary > summary { cursor: pointer; padding: .5rem 0; }
+#annotation-summary > summary h2 { display: inline; }
+.summary-scroll { overflow-x: auto; max-height: 24rem; }
+#species-summary { width: 100%; border-collapse: collapse; }
+#species-summary caption { text-align: left; padding: .5rem 0; }
+#species-summary th, #species-summary td { padding: .55rem .75rem; border-bottom: 1px solid #ccd8cf; }
+#species-summary thead th { position: sticky; top: 0; background: #f1f6f0; z-index: 1; }
+#species-summary td { text-align: right; font-variant-numeric: tabular-nums; }
+#species-summary th:first-child { text-align: left; }
+#species-summary small { display: block; font-weight: normal; }
+#species-summary button { font: inherit; }
+#species-summary .summary-species { text-align: left; }
+#species-summary th[aria-sort="ascending"] button::after { content: " ↑"; }
+#species-summary th[aria-sort="descending"] button::after { content: " ↓"; }
+
+#annotator-workspace .audio-clip img { cursor: zoom-in; }
+body.spectrogram-preview-open { overflow: hidden; }
+.spectrogram-preview {
+    width: min(1400px, 96vw); max-width: 96vw; max-height: 92dvh;
+    padding: 24px; border: 1px solid #829782; border-radius: 10px;
+    background: #f5f8f3; color: #24372b; overflow: auto;
+}
+.spectrogram-preview::backdrop { background: rgb(0 0 0 / 75%); }
+.spectrogram-preview h2 { margin: 0 48px 20px 0; font-size: 1.1rem; overflow-wrap: anywhere; }
+.spectrogram-preview > img { display: block; width: 100%; max-height: 74dvh; object-fit: contain; }
+.spectrogram-preview-close {
+    position: absolute; top: 8px; right: 8px; width: 44px; height: 44px;
+    border: 1px solid #829782; border-radius: 6px; background: white;
+    color: #24372b; font-size: 28px; cursor: pointer;
+}
+.spectrogram-preview :focus-visible { outline: 3px solid #164c89; outline-offset: 2px; }
+@media (max-width: 480px) {
+    .spectrogram-preview { padding: 16px; }
+}

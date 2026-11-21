@@ -1,2 +1,19 @@
 .venv/
 __pycache__/
+# Local annotation acceptance artifacts
+.annotation-test-local*/
+.annotation-browser-test/
+
+# Local investigation and deployment artifacts
+/.tmp/
+
+# Local handoff and planning documents
+/AGENTS.md
+/RYAN_HANDOFF_EOIN.txt
+/docs/ANNOTATION_API.md
+/cloud/storage-migration/
+
+# Local exploratory work
+/osa_anurans_app/playground/code/
+/osa_anurans_app/playground/custom_models/
+/osa_anurans_app/playground/pyproject.toml

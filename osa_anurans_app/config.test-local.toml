@@ -1,0 +1,25 @@
+[paths]
+# Copy new audio into this folder; subdirectories are included.
+audio_roots = ['audio-inbox']
+# Labels are fetched from BigQuery; no CSV is required.
+artifacts = 'artifacts'
+
+[training]
+device = 'auto'
+seed = 42
+epochs = 50
+batch_size = 64
+learning_rate = 0.0005
+test_fraction = 0.2
+
+[candidates]
+# Keep the lowest scores per species; upload only windows in this selection.
+candidates_per_species = 10
+
+# Used only by explicitly requested cloud commands.
+[cloud]
+project = 'osaanurans'
+dataset = 'osafrogdataset'
+bucket = 'osa-frog-data'
+prefix = 'windows/v1'
+location = 'us-south1'
