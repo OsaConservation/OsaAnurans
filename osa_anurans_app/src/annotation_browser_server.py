@@ -131,7 +131,8 @@ def make_server(data: BrowserData, port: int = 0) -> ThreadingHTTPServer:
                     pass
 
     try:
-        return _BrowserServer(("127.0.0.1", port), Handler)
+        # return _BrowserServer(("127.0.0.1", port), Handler)
+        return _BrowserServer(("0.0.0.0", port), Handler)
     except OSError as exc:
         raise OSError(f"Cannot start annotation browser on port {port}: {exc}. Try --port.") from exc
 
