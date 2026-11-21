@@ -144,6 +144,8 @@ def save_snapshot(
     source: str,
     raw_answers: Iterable[Mapping] | None = None,
     windows: Iterable[WindowRecord] | None = None,
+    *,
+    annotation_rows: Iterable[Mapping] | None = None,
 ) -> Path:
     """Save an immutable local label snapshot and return its directory.
 
@@ -152,6 +154,7 @@ def save_snapshot(
     - snapshot.json: Format version, source, creation time, and label count.
     - answers.jsonl: Original answer rows, when supplied.
     - windows.csv: Window metadata, when supplied.
+    - annotations.csv: Bacpipe-compatible positive labels, when supplied.
 
     Write rules:
     - Validate labels and refuse to overwrite an existing snapshot.
@@ -189,6 +192,12 @@ def save_snapshot(
                 temporary / "windows.csv",
                 list(WindowRecord.__dataclass_fields__),
                 (asdict(window) for window in windows),
+            )
+        if annotation_rows is not None:
+            _write_csv(
+                temporary / "annotations.csv",
+                ["audiofilename", "start", "end", "label:species"],
+                annotation_rows,
             )
         (temporary / "snapshot.json").write_text(
             json.dumps(metadata, indent=2) + "\n", encoding="utf-8"

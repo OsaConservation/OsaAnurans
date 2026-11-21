@@ -467,13 +467,46 @@ def import_local(
     return snapshot
 
 
+def _bacpipe_annotation_rows(labels, windows, recordings, audio_roots):
+    """Locate positive consensus labels in the original source recordings."""
+    filenames = {}
+    for recording in recordings:
+        for root in audio_roots:
+            if recording.path.is_relative_to(root):
+                filenames[recording.recording_id] = recording.path.relative_to(root).as_posix()
+                break
+
+    rows = []
+    missing = 0
+    for label in labels:
+        if label.response != "present":
+            continue
+        window = windows.get(label.window_id)
+        if window is None or window.recording_id not in filenames:
+            missing += 1
+            continue
+        rows.append({
+            "audiofilename": filenames[window.recording_id],
+            "start": window.start_seconds,
+            "end": window.end_seconds,
+            "label:species": label.species_id,
+        })
+    if missing:
+        logger.warning(
+            "Omitted %d positive window/species pairs from annotations.csv because no "
+            "source path was found under the configured audio roots",
+            missing,
+        )
+    return rows
+
+
 def refresh_annotations(config: AppConfig, bq) -> Path:
     """Read annotator answers from BigQuery and return a new local snapshot.
 
     Steps:
     1. Fetch answers using the same window IDs as the local catalog.
     2. Count present/absent votes; ignore unsure.
-    3. Save vote counts, original answers, and IDs missing from the local catalog.
+    3. Save vote counts, original answers, a Bacpipe CSV, and unmatched window IDs.
     4. Update latest.json to select the new snapshot.
 
     Returns:
@@ -487,9 +520,9 @@ def refresh_annotations(config: AppConfig, bq) -> Path:
     answers = bq.fetch_annotations()
     logger.info("Fetched %d answers; counting votes and saving a local snapshot...", len(answers))
     with Catalog(config.artifacts / "catalog.sqlite") as catalog:
-        local_window_ids = {window.window_id for window in catalog.windows()}
+        windows = {window.window_id: window for window in catalog.windows()}
         unmatched = sorted(
-            {row["window_id"] for row in answers if row["window_id"] not in local_window_ids}
+            {row["window_id"] for row in answers if row["window_id"] not in windows}
         )
         if unmatched:
             logger.warning(
@@ -504,13 +537,16 @@ def refresh_annotations(config: AppConfig, bq) -> Path:
             labels,
             "bigquery",
             raw_answers=answers,
-            windows=catalog.windows(),
+            windows=windows.values(),
+            annotation_rows=_bacpipe_annotation_rows(
+                labels, windows, catalog.recordings(), config.audio_roots
+            ),
         )
         write_json(
             snapshot / "unmatched_windows.json",
             {
                 "window_ids": unmatched,
-                "answer_count": sum(row["window_id"] not in local_window_ids for row in answers),
+                "answer_count": sum(row["window_id"] not in windows for row in answers),
             },
         )
     # Change the label default while retaining the selected embedding configuration.

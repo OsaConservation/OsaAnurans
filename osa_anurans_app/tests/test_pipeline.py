@@ -14,7 +14,12 @@ from osa_anurans_app.src.catalog import Catalog
 from osa_anurans_app.src.config import AppConfig, load_config
 from osa_anurans_app.src.files import write_json
 from osa_anurans_app.src.model.model import load_artifact
-from osa_anurans_app.src.pipeline import generate_candidates_local, import_local, train_local
+from osa_anurans_app.src.pipeline import (
+    generate_candidates_local,
+    import_local,
+    refresh_annotations,
+    train_local,
+)
 
 
 class TinyBackend:
@@ -87,6 +92,54 @@ def local_config(tmp_path):
         epochs=30,
         learning_rate=0.1,
         batch_size=4,
+    )
+
+
+def test_refresh_exports_positive_consensus_for_bacpipe(local_config, caplog):
+    root = local_config.audio_roots[0]
+    original = root / "deployment" / "recording-0.wav"
+    uploaded = root / "deployment" / "deployment_20261121_080000.WAV"
+    original.rename(uploaded)
+    config = replace(local_config, annotations_csv=None)
+    import_local(config, backend=TinyBackend())
+    with Catalog(config.artifacts / "catalog.sqlite") as catalog:
+        recording_id = next(row.recording_id for row in catalog.recordings() if row.path == uploaded)
+        window_id = next(
+            window.window_id for window in catalog.windows()
+            if window.recording_id == recording_id and window.start_seconds == 5
+        )
+
+    votes = [
+        ("A", "present"), ("A", "present"), ("A", "absent"), ("B", "present"),
+        ("C", "absent"), ("D", "present"), ("D", "absent"), ("E", "unsure"),
+    ]
+    answers = [
+        {"window_id": window_id, "query_species_id": species, "response": response}
+        for species, response in votes
+    ]
+    answers.append({"window_id": "missing", "query_species_id": "A", "response": "present"})
+
+    class BigQuery:
+        def fetch_annotations(self):
+            return answers
+
+    snapshot = refresh_annotations(config, BigQuery())
+    assert snapshot.parent == config.artifacts / "annotations"
+    with (snapshot / "annotations.csv").open(encoding="utf-8", newline="") as handle:
+        reader = csv.reader(handle)
+        assert next(reader) == ["audiofilename", "start", "end", "label:species"]
+        assert list(reader) == [
+            ["deployment/deployment_20261121_080000.WAV", "5.0", "10.0", species]
+            for species in ("A", "B")
+        ]
+    assert len(load_snapshot(snapshot)) == 6
+    assert (snapshot / "answers.jsonl").read_text(encoding="utf-8").count("\n") == len(answers)
+    assert "Omitted 1 positive window/species pairs" in caplog.text
+
+    answers.clear()
+    empty = refresh_annotations(config, BigQuery())
+    assert (empty / "annotations.csv").read_text(encoding="utf-8") == (
+        "audiofilename,start,end,label:species\n"
     )
 
 
